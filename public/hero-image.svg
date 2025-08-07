@@ -1,0 +1,60 @@
+
+<svg width="500" height="500" viewBox="0 0 500 500" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circles -->
+  <circle cx="250" cy="250" r="200" fill="#F3F4F6" />
+  <circle cx="250" cy="250" r="150" fill="#E5E7EB" />
+  <circle cx="250" cy="250" r="100" fill="#D1D5DB" />
+  <circle cx="250" cy="250" r="50" fill="#9CA3AF" />
+  
+  <!-- Stylized people around the circle -->
+  <circle cx="250" cy="100" r="30" fill="#6366F1">
+    <animate attributeName="r" values="30;33;30" dur="3s" repeatCount="indefinite" />
+  </circle>
+  <circle cx="400" cy="250" r="30" fill="#8B5CF6">
+    <animate attributeName="r" values="30;33;30" dur="3s" repeatCount="indefinite" begin="0.5s" />
+  </circle>
+  <circle cx="250" cy="400" r="30" fill="#EC4899">
+    <animate attributeName="r" values="30;33;30" dur="3s" repeatCount="indefinite" begin="1s" />
+  </circle>
+  <circle cx="100" cy="250" r="30" fill="#10B981">
+    <animate attributeName="r" values="30;33;30" dur="3s" repeatCount="indefinite" begin="1.5s" />
+  </circle>
+  
+  <!-- Lines connecting people with animations -->
+  <line x1="250" y1="130" x2="250" y2="220" stroke="#9CA3AF" stroke-width="4">
+    <animate attributeName="stroke" values="#9CA3AF;#6366F1;#9CA3AF" dur="4s" repeatCount="indefinite" />
+    <animate attributeName="stroke-width" values="4;6;4" dur="4s" repeatCount="indefinite" />
+  </line>
+  <line x1="370" y1="250" x2="300" y2="250" stroke="#9CA3AF" stroke-width="4">
+    <animate attributeName="stroke" values="#9CA3AF;#8B5CF6;#9CA3AF" dur="4s" repeatCount="indefinite" begin="1s" />
+    <animate attributeName="stroke-width" values="4;6;4" dur="4s" repeatCount="indefinite" begin="1s" />
+  </line>
+  <line x1="250" y1="370" x2="250" y2="300" stroke="#9CA3AF" stroke-width="4">
+    <animate attributeName="stroke" values="#9CA3AF;#EC4899;#9CA3AF" dur="4s" repeatCount="indefinite" begin="2s" />
+    <animate attributeName="stroke-width" values="4;6;4" dur="4s" repeatCount="indefinite" begin="2s" />
+  </line>
+  <line x1="130" y1="250" x2="200" y2="250" stroke="#9CA3AF" stroke-width="4">
+    <animate attributeName="stroke" values="#9CA3AF;#10B981;#9CA3AF" dur="4s" repeatCount="indefinite" begin="3s" />
+    <animate attributeName="stroke-width" values="4;6;4" dur="4s" repeatCount="indefinite" begin="3s" />
+  </line>
+  
+  <!-- Dollar signs with animations -->
+  <text x="245" y="105" font-family="Arial" font-size="20" fill="white">$
+    <animate attributeName="font-size" values="20;22;20" dur="2s" repeatCount="indefinite" />
+  </text>
+  <text x="395" y="255" font-family="Arial" font-size="20" fill="white">$
+    <animate attributeName="font-size" values="20;22;20" dur="2s" repeatCount="indefinite" begin="0.5s" />
+  </text>
+  <text x="245" y="405" font-family="Arial" font-size="20" fill="white">$
+    <animate attributeName="font-size" values="20;22;20" dur="2s" repeatCount="indefinite" begin="1s" />
+  </text>
+  <text x="95" y="255" font-family="Arial" font-size="20" fill="white">$
+    <animate attributeName="font-size" values="20;22;20" dur="2s" repeatCount="indefinite" begin="1.5s" />
+  </text>
+  
+  <!-- Central MiTurn logo with pulse -->
+  <circle cx="250" cy="250" r="50" fill="#4F46E5">
+    <animate attributeName="opacity" values="0.8;1;0.8" dur="4s" repeatCount="indefinite" />
+  </circle>
+  <text x="250" y="250" font-family="Arial" font-weight="bold" font-size="16" fill="white" text-anchor="middle" alignment-baseline="middle">MiTurn</text>
+</svg>
