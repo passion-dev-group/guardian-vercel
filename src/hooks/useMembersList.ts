@@ -98,6 +98,7 @@ export const useMembersList = (circleId: string | undefined) => {
               user_id: member.user_id,
               payout_position: member.payout_position,
               next_payout_date: member.next_payout_date,
+              is_admin: member.is_admin || false,
               profile: {
                 display_name: profile.display_name || "Anonymous User",
                 avatar_url: profile.avatar_url

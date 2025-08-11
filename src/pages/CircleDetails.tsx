@@ -15,13 +15,13 @@ import CircleActionsPanel from "@/components/circle-details/CircleActionsPanel";
 import ActivityLog from "@/components/circle-details/ActivityLog";
 import { ContributionCard } from "@/components/circle-details/ContributionCard";
 import { PayoutCard } from "@/components/circle-details/PayoutCard";
+import RotationManager from "@/components/circle-details/RotationManager";
 
 const CircleDetails = () => {
   const { circleId } = useParams<{ circleId: string }>();
   const { user } = useAuth();
   const [isAdmin, setIsAdmin] = useState(false);
   const hasTrackedPageView = useRef(false);
-  
   // Fetch circle details
   const { data: circle, isLoading: isCircleLoading, error: circleError } = useQuery({
     queryKey: ['circle', circleId],
@@ -126,7 +126,11 @@ const CircleDetails = () => {
           <div className="lg:col-span-2 space-y-6">
             <section aria-labelledby="members-heading">
               <h2 id="members-heading" className="text-xl font-semibold mb-4">Members</h2>
-              <MemberList circleId={circleId} isAdmin={isAdmin} />
+              <MemberList 
+                circleId={circleId} 
+                isAdmin={isAdmin} 
+                currentUserId={user?.id}
+              />
             </section>
             
             <section aria-labelledby="activity-heading">
@@ -156,6 +160,14 @@ const CircleDetails = () => {
                 />
               </section>
             )}
+            
+            <section aria-labelledby="rotation-heading">
+              <h2 id="rotation-heading" className="text-xl font-semibold mb-4">Rotation Management</h2>
+              <RotationManager 
+                circleId={circleId!}
+                isAdmin={isAdmin}
+              />
+            </section>
             
             <section aria-labelledby="schedule-heading">
               <h2 id="schedule-heading" className="text-xl font-semibold mb-4">Contribution Schedule</h2>

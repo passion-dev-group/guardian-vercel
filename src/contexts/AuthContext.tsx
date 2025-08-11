@@ -86,11 +86,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         toast.error(result.error.message);
       } else if (result.data.user) {
         toast.success("Account created successfully! Please verify your identity.");
-        // Upsert display_name into profiles table
+        // Upsert profile data into profiles table
         if (fullName) {
           await supabase.from('profiles').upsert({
             id: result.data.user.id,
             display_name: fullName,
+            email: email, // Store the email in profiles table
           });
         }
       }

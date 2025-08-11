@@ -9,6 +9,7 @@ export interface Member {
   user_id: string;
   payout_position: number | null;
   next_payout_date: string | null;
+  is_admin: boolean;
   profile: MemberProfile;
   contribution_status?: "paid" | "due" | "overdue";
   last_reminder_date?: string | null;

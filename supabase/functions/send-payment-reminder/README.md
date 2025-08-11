@@ -24,7 +24,7 @@ Call this function with the following payload:
 
 - Sends HTML and plain text emails
 - Different email templates based on reminder type
-- Verifies admin permissions before sending
+- Smart permission system: admins can send to anyone, members can send to overdue users
 - Logs reminder attempts to database
 - Tracks analytics events
 - Handles errors gracefully
@@ -53,6 +53,38 @@ Returns a JSON response with:
 
 ## Security
 
-- Verifies the user is an admin of the circle
+- Verifies the user is a member of the circle
+- Allows reminders if user is admin OR if target member is overdue
 - Uses service role key for database operations
 - Validates all input parameters
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Foreign Key Relationship Errors**
+   - The function now fetches profiles separately to avoid relationship issues
+   - Check that the `profiles` table exists and has the expected columns
+
+2. **SendGrid API Key Issues**
+   - Ensure `SENDGRID_API_KEY` is set in your Supabase project
+   - Verify the API key has permission to send emails
+
+3. **Database Permission Issues**
+   - Ensure the service role key has access to all required tables
+   - Check RLS policies if using them
+
+### Testing Locally
+
+1. Start Supabase locally: `supabase start`
+2. Update the test file with your actual IDs
+3. Run the test: `deno run --allow-net test.ts`
+
+### Logs
+
+The function includes extensive logging to help debug issues:
+- Circle details fetching
+- Member details fetching  
+- Admin verification
+- Email sending status
+- Database logging results

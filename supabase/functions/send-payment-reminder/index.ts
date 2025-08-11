@@ -9,7 +9,8 @@ const corsHeaders = {
 
 // This will be available as a secret environment variable in production
 const SENDGRID_API_KEY = Deno.env.get("SENDGRID_API_KEY") || "";
-
+const SENDGRID_FROM_EMAIL = Deno.env.get("SENDGRID_FROM_EMAIL") || "support@miturn.org";
+const FRONTEND_URL = Deno.env.get("FRONTEND_URL") || "https://guardian-vercel.vercel.app";
 const supabaseUrl = "https://rnctzmgmoopmfohdypcb.supabase.co";
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
@@ -20,18 +21,14 @@ interface PaymentReminderPayload {
   memberId: string;
   adminUserId: string;
   reminderType?: "gentle" | "urgent" | "overdue";
+  memberEmail?: string; // Add this field to pass email from frontend
+  memberName?: string; // Add this field to pass name from frontend
 }
 
 async function getCircleDetails(circleId: string) {
   const { data, error } = await supabase
     .from("circles")
-    .select(`
-      *,
-      profiles!circles_created_by_fkey (
-        display_name,
-        email
-      )
-    `)
+    .select("*")
     .eq("id", circleId)
     .single();
     
@@ -40,20 +37,26 @@ async function getCircleDetails(circleId: string) {
     return null;
   }
   
+  // If we have a created_by user, fetch their profile separately
+  if (data.created_by) {
+    const { data: profileData, error: profileError } = await supabase
+      .from("profiles")
+      .select("display_name, email")
+      .eq("id", data.created_by)
+      .maybeSingle();
+      
+    if (!profileError && profileData) {
+      data.creator_profile = profileData;
+    }
+  }
+  
   return data;
 }
 
 async function getMemberDetails(memberId: string, circleId: string) {
   const { data, error } = await supabase
     .from("circle_members")
-    .select(`
-      *,
-      profiles!circle_members_user_id_fkey (
-        display_name,
-        email,
-        avatar_url
-      )
-    `)
+    .select("*")
     .eq("id", memberId)
     .eq("circle_id", circleId)
     .single();
@@ -63,22 +66,85 @@ async function getMemberDetails(memberId: string, circleId: string) {
     return null;
   }
   
-  return data;
-}
-
-async function getAdminDetails(adminUserId: string) {
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("display_name, email")
-    .eq("id", adminUserId)
-    .single();
+  // Fetch the member's profile separately
+  if (data.user_id) {
+    console.log("Fetching profile for user_id:", data.user_id);
     
-  if (error) {
-    console.error("Error fetching admin details:", error);
-    return null;
+    // Try to get profile from profiles table
+    const { data: profileData, error: profileError } = await supabase
+      .from("profiles")
+      .select("display_name, avatar_url")
+      .eq("id", data.user_id)
+      .maybeSingle();
+      
+    console.log("Profile fetch result:", { profileData, profileError });
+    
+    // Get email from auth.users table using the service role key
+    let userEmail = null;
+    try {
+      const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(data.user_id);
+      if (!authError && authUser.user) {
+        userEmail = authUser.user.email;
+        console.log("Email fetched from auth:", userEmail);
+      } else {
+        console.error("Error fetching auth user:", authError);
+      }
+    } catch (e) {
+      console.log("Could not fetch from auth.users:", e);
+    }
+    
+    if (profileData) {
+      data.profile = {
+        ...profileData,
+        email: userEmail
+      };
+      console.log("Profile attached to member data:", data.profile);
+    } else {
+      console.error("Failed to fetch profile:", profileError);
+      // Set a default profile to avoid null reference errors
+      data.profile = {
+        display_name: "Unknown User",
+        email: userEmail,
+        avatar_url: null
+      };
+    }
+  } else {
+    console.error("No user_id found in member data:", data);
   }
   
   return data;
+}
+
+async function getUserDetails(userId: string) {
+  // Get profile data from profiles table
+  const { data: profileData, error: profileError } = await supabase
+    .from("profiles")
+    .select("display_name")
+    .eq("id", userId)
+    .maybeSingle();
+    
+  if (profileError) {
+    console.error("Error fetching profile data:", profileError);
+  }
+  
+  // Get email from auth.users table
+  let userEmail = null;
+  try {
+    const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(userId);
+    if (!authError && authUser.user) {
+      userEmail = authUser.user.email;
+      console.log("Email fetched from auth for user:", userId, userEmail);
+    } else {
+      console.error("Error fetching auth user:", authError);
+    }
+  } catch (e) {
+    console.log("Could not fetch from auth.users:", e);
+  }
+  
+  return {
+    display_name: profileData?.display_name || "Unknown User",
+    email: userEmail
+  };
 }
 
 async function sendPaymentReminderEmail(
@@ -95,7 +161,7 @@ async function sendPaymentReminderEmail(
     return false;
   }
   
-  const baseUrl = "https://miturn.app"; // Replace with your actual domain
+  const baseUrl = FRONTEND_URL; // Replace with your actual domain
   const dashboardLink = `${baseUrl}/dashboard`;
   
   let subject: string;
@@ -207,7 +273,7 @@ The MiTurn Team`;
             subject: subject,
           },
         ],
-        from: { email: "reminders@miturn.app", name: "MiTurn Payment Reminders" },
+        from: { email: SENDGRID_FROM_EMAIL, name: "MiTurn Payment Reminders" },
         content: [
           {
             type: "text/plain",
@@ -241,7 +307,7 @@ serve(async (req) => {
   }
 
   try {
-    const { circleId, memberId, adminUserId, reminderType } = await req.json() as PaymentReminderPayload;
+    const { circleId, memberId, adminUserId, reminderType, memberEmail, memberName } = await req.json() as PaymentReminderPayload;
     
     if (!circleId || !memberId || !adminUserId) {
       return new Response(JSON.stringify({ 
@@ -253,40 +319,33 @@ serve(async (req) => {
       });
     }
 
-    // Verify the admin user is actually an admin of this circle
-    const { data: adminMembership, error: adminError } = await supabase
+    // Check if the user is a member of this circle (either admin or regular member)
+    const { data: userMembership, error: membershipError } = await supabase
       .from("circle_members")
       .select("is_admin")
       .eq("circle_id", circleId)
       .eq("user_id", adminUserId)
-      .eq("is_admin", true)
       .single();
 
-    if (adminError || !adminMembership) {
+    if (membershipError || !userMembership) {
       return new Response(JSON.stringify({ 
         success: false, 
-        error: "User is not an admin of this circle" 
+        error: "User is not a member of this circle" 
       }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
     }
 
-    // Get circle details
-    const circleDetails = await getCircleDetails(circleId);
-    if (!circleDetails) {
-      return new Response(JSON.stringify({ 
-        success: false, 
-        error: "Circle not found" 
-      }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
-      });
-    }
+    // Check if the member being reminded is overdue
+    const { data: targetMember, error: targetError } = await supabase
+      .from("circle_members")
+      .select("id, user_id")
+      .eq("id", memberId)
+      .eq("circle_id", circleId)
+      .single();
 
-    // Get member details
-    const memberDetails = await getMemberDetails(memberId, circleId);
-    if (!memberDetails) {
+    if (targetError || !targetMember) {
       return new Response(JSON.stringify({ 
         success: false, 
         error: "Member not found in this circle" 
@@ -296,29 +355,153 @@ serve(async (req) => {
       });
     }
 
-    // Get admin details
-    const adminDetails = await getAdminDetails(adminUserId);
-    if (!adminDetails) {
+    // Allow reminders if user is admin OR if the target member is overdue
+    // For overdue members, any circle member can send a reminder
+    const isAdmin = userMembership.is_admin;
+    const isOverdue = false; // We'll determine this from the member's status
+
+    // Get the member's contribution status to check if overdue
+    const { data: lastContribution, error: contributionError } = await supabase
+      .from("circle_transactions")
+      .select("transaction_date, status")
+      .eq("circle_id", circleId)
+      .eq("user_id", targetMember.user_id)
+      .eq("type", "contribution")
+      .order("transaction_date", { ascending: false })
+      .limit(1);
+
+    let isMemberOverdue = false;
+    if (!contributionError && lastContribution && lastContribution.length > 0) {
+      const lastContributionDate = new Date(lastContribution[0].transaction_date);
+      const oneMonthAgo = new Date();
+      oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+      
+      if (lastContribution[0].status !== "completed" || lastContributionDate < oneMonthAgo) {
+        isMemberOverdue = true;
+      }
+    } else {
+      // If no contributions found, consider overdue
+      isMemberOverdue = true;
+    }
+
+    // Allow if admin OR if member is overdue
+    if (!isAdmin && !isMemberOverdue) {
       return new Response(JSON.stringify({ 
         success: false, 
-        error: "Admin user not found" 
+        error: "Only admins can send reminders to members who are not overdue" 
+      }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+
+    // Get circle details
+    const circleDetails = await getCircleDetails(circleId);
+    if (!circleDetails) {
+      console.error("Circle not found:", circleId);
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: "Circle not found" 
+      }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+    
+    console.log("Circle details fetched:", {
+      id: circleDetails.id,
+      name: circleDetails.name,
+      contribution_amount: circleDetails.contribution_amount,
+      frequency: circleDetails.frequency
+    });
+
+    // Get member details
+    const memberDetails = await getMemberDetails(memberId, circleId);
+    if (!memberDetails) {
+      console.error("Member not found:", { memberId, circleId });
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: "Member not found in this circle" 
+      }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+    
+    console.log("Member details fetched:", {
+      id: memberDetails.id,
+      user_id: memberDetails.user_id,
+      profile: memberDetails.profile,
+      raw_member_data: memberDetails
+    });
+
+    // Get user details (could be admin or regular member)
+    const userDetails = await getUserDetails(adminUserId);
+    if (!userDetails) {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: "User not found" 
       }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
     }
 
-    const recipientName = memberDetails.profiles?.display_name || "Circle Member";
-    const recipientEmail = memberDetails.profiles?.email;
+    console.log("Permission check results:", {
+      isAdmin: userMembership.is_admin,
+      isMemberOverdue,
+      user_id: adminUserId,
+      target_member_id: targetMember.user_id
+    });
+
+    // Use email and name from payload if available, otherwise fall back to profile data
+    const recipientName = memberName || memberDetails.profile?.display_name || "Circle Member";
+    let recipientEmail = memberEmail || memberDetails.profile?.email;
+    
+    // If still no email, try to get it directly from auth.users as a last resort
+    if (!recipientEmail && memberDetails.user_id) {
+      try {
+        const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(memberDetails.user_id);
+        if (!authError && authUser.user) {
+          recipientEmail = authUser.user.email;
+          console.log("Email fetched directly from auth as fallback:", recipientEmail);
+        }
+      } catch (e) {
+        console.log("Could not fetch email from auth as fallback:", e);
+      }
+    }
+    
     const circleName = circleDetails.name;
     const contributionAmount = circleDetails.contribution_amount;
     const frequency = circleDetails.frequency;
-    const adminName = adminDetails.display_name || "Circle Admin";
+    const adminName = userDetails.display_name || "Circle Member";
+
+    console.log("Extracted data:", {
+      recipientName,
+      recipientEmail,
+      circleName,
+      contributionAmount,
+      frequency,
+      adminName
+    });
 
     if (!recipientEmail) {
+      console.error("Member has no email address. Full member details:", {
+        memberDetails,
+        profile: memberDetails.profile,
+        user_id: memberDetails.user_id,
+        has_profile: !!memberDetails.profile,
+        profile_keys: memberDetails.profile ? Object.keys(memberDetails.profile) : 'no profile'
+      });
+      
       return new Response(JSON.stringify({ 
         success: false, 
-        error: "Member has no email address" 
+        error: "Member has no email address",
+        debug_info: {
+          has_profile: !!memberDetails.profile,
+          profile_keys: memberDetails.profile ? Object.keys(memberDetails.profile) : 'no profile',
+          user_id: memberDetails.user_id
+        }
       }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" }
@@ -337,25 +520,32 @@ serve(async (req) => {
     );
 
     // Log the reminder attempt
-    const { error: logError } = await supabase
-      .from("circle_transactions")
-      .insert({
-        circle_id: circleId,
-        user_id: memberDetails.user_id,
-        type: "reminder",
-        amount: 0,
-        status: emailSent ? "sent" : "failed",
-        transaction_date: new Date().toISOString(),
-        description: `Payment reminder sent by ${adminName}`,
-        metadata: {
-          reminder_type: reminderType,
-          admin_user_id: adminUserId,
-          email_sent: emailSent
-        }
-      });
+    try {
+      const { error: logError } = await supabase
+        .from("circle_transactions")
+        .insert({
+          circle_id: circleId,
+          user_id: memberDetails.user_id,
+          type: "reminder",
+          amount: 0,
+          status: emailSent ? "sent" : "failed",
+          transaction_date: new Date().toISOString(),
+          description: `Payment reminder sent by ${adminName}`,
+          metadata: {
+            reminder_type: reminderType,
+            admin_user_id: adminUserId,
+            email_sent: emailSent
+          }
+        });
 
-    if (logError) {
+      if (logError) {
+        console.error("Error logging reminder transaction:", logError);
+      } else {
+        console.log("Reminder transaction logged successfully");
+      }
+    } catch (logError) {
       console.error("Error logging reminder transaction:", logError);
+      // Don't fail the entire operation if logging fails
     }
 
     // Track the analytics event

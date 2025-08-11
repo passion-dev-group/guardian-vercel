@@ -1,6 +1,7 @@
 
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -14,9 +15,10 @@ interface MemberListItemProps {
   isAdmin: boolean;
   onRemind: (memberId: string, displayName: string | null, reminderType?: "gentle" | "urgent" | "overdue") => void;
   isReminding: boolean;
+  currentUserId?: string;
 }
 
-const MemberListItem = ({ member, isAdmin, onRemind, isReminding }: MemberListItemProps) => {
+const MemberListItem = ({ member, isAdmin, onRemind, isReminding, currentUserId }: MemberListItemProps) => {
   return (
     <TableRow>
       <TableCell className="flex items-center gap-2">
@@ -27,16 +29,81 @@ const MemberListItem = ({ member, isAdmin, onRemind, isReminding }: MemberListIt
             <AvatarFallback>{member.profile.display_name?.charAt(0) || "?"}</AvatarFallback>
           )}
         </Avatar>
-        <span>{member.profile.display_name || "Anonymous User"}</span>
+        <div className="flex items-center gap-2">
+          <span>{member.profile.display_name || "Anonymous User"}</span>
+          {member.is_admin && (
+            <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800 border-blue-200">
+              👑 Admin
+            </Badge>
+          )}
+        </div>
       </TableCell>
       <TableCell>
         <MemberStatusBadge status={member.contribution_status || "due"} />
       </TableCell>
       <TableCell className="hidden sm:table-cell">
-        {member.payout_position !== null ? `#${member.payout_position}` : "Not set"}
+        {member.payout_position !== null ? (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-2 cursor-help">
+                  <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold relative">
+                    {member.payout_position}
+                    {member.payout_position === 1 && (
+                      <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                    )}
+                  </div>
+                  <span className="text-sm font-medium">
+                    {member.payout_position === 1 ? (
+                      <span className="flex items-center gap-1">
+                        <span className="text-green-600">🎯 Next Payout</span>
+                      </span>
+                    ) : (
+                      `Payout #${member.payout_position}`
+                    )}
+                  </span>
+                  {/* Show queue position indicator */}
+                  {member.payout_position > 1 && (
+                    <div className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
+                      {member.payout_position === 2 ? "2nd in queue" : 
+                       member.payout_position === 3 ? "3rd in queue" : 
+                       `${member.payout_position}th in queue`}
+                    </div>
+                  )}
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>
+                  {member.payout_position === 1 
+                    ? "This member will receive the next payout when all contributions are collected"
+                    : `This member will receive payout #${member.payout_position} in the rotation order`
+                  }
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ) : (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-2 cursor-help">
+                  <div className="flex items-center justify-center w-6 h-6 rounded-full bg-muted text-muted-foreground text-xs">
+                    ?
+                  </div>
+                  <span className="text-sm text-muted-foreground">Waiting</span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>This member is waiting to be assigned a payout position in the rotation</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
       </TableCell>
       <TableCell className="text-right">
-        {(isAdmin || member.contribution_status === "overdue") && (
+        {/* Only show actions if user can send reminders AND it's not the current user */}
+        {(isAdmin || member.contribution_status === "overdue") && 
+         currentUserId && member.user_id !== currentUserId && (
           <div className="flex items-center gap-2 justify-end">
             {member.last_reminder_date && (
               <TooltipProvider>
@@ -91,6 +158,27 @@ const MemberListItem = ({ member, isAdmin, onRemind, isReminding }: MemberListIt
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+          </div>
+        )}
+        
+        {/* Show a helpful message when it's the current user */}
+        {currentUserId && member.user_id === currentUserId && (
+          <div className="text-right space-y-1">
+            <div className="text-xs text-muted-foreground">
+              This is you
+            </div>
+            {member.is_admin && (
+              <div className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                👑 Admin
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* Show message when no current user (not logged in) */}
+        {!currentUserId && (
+          <div className="text-xs text-muted-foreground text-right">
+            Login to manage
           </div>
         )}
       </TableCell>

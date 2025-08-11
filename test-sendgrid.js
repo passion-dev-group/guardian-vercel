@@ -27,7 +27,7 @@ async function testSendGrid() {
             subject: "Test Email from MiTurn",
           },
         ],
-        from: { email: "invitations@miturn.app", name: "MiTurn Test" },
+        from: { email: "support@miturn.org", name: "MiTurn Test" },
         content: [
           {
             type: "text/plain",

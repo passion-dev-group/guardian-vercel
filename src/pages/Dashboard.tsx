@@ -6,6 +6,7 @@ import CircleCard from "@/components/dashboard/CircleCard";
 import NextPayoutWidget from "@/components/dashboard/NextPayoutWidget";
 import QuickActionsBar from "@/components/dashboard/QuickActionsBar";
 import UserPlanOverview from "@/components/pricing/UserPlanOverview";
+import RotationOverviewWidget from "@/components/dashboard/RotationOverviewWidget";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import VerificationBanner from "@/components/VerificationBanner";
@@ -206,6 +207,16 @@ const Dashboard = () => {
                   amount={nextPayout.amount}
                   circleId={nextPayout.circleId}
                 />
+                
+                {/* Show rotation status for the first active circle */}
+                {circles.length > 0 && (
+                  <RotationOverviewWidget
+                    circleId={circles[0].id}
+                    circleName={circles[0].name}
+                    isAdmin={false} // We'll need to determine admin status
+                  />
+                )}
+                
                 <ActivityFeed />
               </div>
             </div>

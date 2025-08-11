@@ -12,15 +12,16 @@ import LoadingSpinner from "@/components/LoadingSpinner";
 interface MemberListProps {
   circleId: string | undefined;
   isAdmin: boolean;
+  currentUserId?: string;
 }
 
-const MemberList = ({ circleId, isAdmin }: MemberListProps) => {
+const MemberList = ({ circleId, isAdmin, currentUserId }: MemberListProps) => {
   const { members, loading } = useMembersList(circleId);
   const { sendReminder, isSending } = usePaymentReminder();
   
   const handleRemindMember = async (memberId: string, displayName: string | null, reminderType: "gentle" | "urgent" | "overdue" = "gentle") => {
     if (!circleId) return;
-    
+    console.log("Sending reminder to member:",circleId, memberId, displayName, reminderType);
     try {
       const result = await sendReminder({
         circleId,
@@ -68,9 +69,23 @@ const MemberList = ({ circleId, isAdmin }: MemberListProps) => {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Member</TableHead>
+            <TableHead>
+              <div className="flex items-center gap-2">
+                <span>Member</span>
+                <div className="text-xs text-muted-foreground font-normal">
+                  (👑 = Admin)
+                </div>
+              </div>
+            </TableHead>
             <TableHead>Status</TableHead>
-            <TableHead className="hidden sm:table-cell">Position</TableHead>
+            <TableHead className="hidden sm:table-cell">
+              <div className="flex items-center gap-2">
+                <span>Payout Order</span>
+                <div className="text-xs text-muted-foreground font-normal">
+                  (Rotation Queue)
+                </div>
+              </div>
+            </TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
@@ -82,6 +97,7 @@ const MemberList = ({ circleId, isAdmin }: MemberListProps) => {
               isAdmin={isAdmin}
               onRemind={handleRemindMember}
               isReminding={isSending}
+              currentUserId={currentUserId}
             />
           ))}
         </TableBody>

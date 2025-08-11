@@ -76,6 +76,7 @@ const CircleHeader = ({ circle }: CircleHeaderProps) => {
         <p className="mt-1 text-sm text-muted-foreground">
           {`${circle.frequency} circle with ${formatCurrency(circle.contribution_amount)} contributions`}
         </p>
+        <CircleAdminInfo circleId={circle.id} />
       </div>
       
       <div className="grid grid-cols-1 sm:grid-cols-3 border-t">
@@ -135,6 +136,67 @@ const NextPayoutDate = ({ circleId }: { circleId: string }) => {
   }, [circleId]);
   
   return <span>{nextPayout}</span>;
+};
+
+// Helper component to display circle admin information
+const CircleAdminInfo = ({ circleId }: { circleId: string }) => {
+  const [adminInfo, setAdminInfo] = useState<{ name: string; isCurrentUser: boolean } | null>(null);
+  
+  useEffect(() => {
+    const fetchAdminInfo = async () => {
+      try {
+        // Get the admin member
+        const { data: adminMember, error } = await supabase
+          .from('circle_members')
+          .select('user_id, is_admin')
+          .eq('circle_id', circleId)
+          .eq('is_admin', true)
+          .maybeSingle();
+          
+        if (error) throw error;
+        
+        if (adminMember) {
+          // Get the admin's profile
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('display_name')
+            .eq('id', adminMember.user_id)
+            .maybeSingle();
+            
+          if (profileError) throw profileError;
+          
+          // Check if current user is the admin
+          const { data: { user } } = await supabase.auth.getUser();
+          const isCurrentUser = user?.id === adminMember.user_id;
+          
+          setAdminInfo({
+            name: profile?.display_name || "Unknown Admin",
+            isCurrentUser
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching admin info:", error);
+      }
+    };
+    
+    fetchAdminInfo();
+  }, [circleId]);
+  
+  if (!adminInfo) return null;
+  
+  return (
+    <div className="mt-3 flex items-center gap-2">
+      <span className="text-xs text-muted-foreground">👑 Admin:</span>
+      <span className={`text-sm font-medium ${adminInfo.isCurrentUser ? 'text-blue-600' : 'text-foreground'}`}>
+        {adminInfo.isCurrentUser ? 'You' : adminInfo.name}
+      </span>
+      {adminInfo.isCurrentUser && (
+        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+          You
+        </span>
+      )}
+    </div>
+  );
 };
 
 export default CircleHeader;
