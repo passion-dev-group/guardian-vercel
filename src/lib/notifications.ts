@@ -22,9 +22,9 @@ export class PaymentNotificationService {
     const { type, success, amount, circleName, transactionId, error, recipientName, plaidTransferId } = data;
 
     if (success) {
-      this.showSuccessPaymentNotification(data);
+      this.showSuccessNotification(data);
     } else {
-      this.showErrorPaymentNotification(data);
+      this.showErrorNotification(data);
     }
 
     // Track the notification event
@@ -41,7 +41,7 @@ export class PaymentNotificationService {
   /**
    * Show success notification for payments
    */
-  private static showSuccessPaymentNotification(data: PaymentNotificationData) {
+  private static showSuccessNotification(data: PaymentNotificationData) {
     const { type, amount, circleName, recipientName } = data;
 
     if (type === 'contribution') {
@@ -62,7 +62,7 @@ export class PaymentNotificationService {
   /**
    * Show error notification for failed payments
    */
-  private static showErrorPaymentNotification(data: PaymentNotificationData) {
+  private static showErrorNotification(data: PaymentNotificationData) {
     const { type, amount, circleName, error } = data;
 
     const errorMessage = error || "An unexpected error occurred. Please try again.";

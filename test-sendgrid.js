@@ -1,7 +1,7 @@
 // Test script for SendGrid integration
 // Run this with: node test-sendgrid.js
 
-const SENDGRID_API_KEY = "you should use your own api key";
+const SENDGRID_API_KEY = "";
 
 if (!SENDGRID_API_KEY) {
   console.error('❌ SENDGRID_API_KEY environment variable not set');
@@ -23,11 +23,11 @@ async function testSendGrid() {
       body: JSON.stringify({
         personalizations: [
           {
-            to: [{ email: "work@teleint.com", name: "Test User" }],
+            to: [{ email: "georgelmitzel@armyspy.com", name: "Test User" }],
             subject: "Test Email from MiTurn",
           },
         ],
-        from: { email: "support@miturn.org", name: "MiTurn Test" },
+        from: { email: "invitations@miturn.app", name: "MiTurn Test" },
         content: [
           {
             type: "text/plain",

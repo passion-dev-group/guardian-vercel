@@ -26,3 +26,6 @@ dist-ssr
 *.lock
 .env
 /*.md
+yarn.lock
+test-sendgrid.js
+package-lock.json

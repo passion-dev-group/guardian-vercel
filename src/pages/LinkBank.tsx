@@ -6,48 +6,53 @@ import { trackEvent } from "@/lib/analytics";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
-import CircleLinkButton from "@/components/bank-linking/CircleLinkButton";
-import CircleWalletVerification from "@/components/bank-linking/CircleWalletVerification";
+// Import our components
+import PlaidLinkButton from "@/components/bank-linking/PlaidLinkButton";
+import CardEntryForm from "@/components/bank-linking/CardEntryForm";
 import LinkedAccountsList from "@/components/bank-linking/LinkedAccountsList";
 import SecurityNote from "@/components/bank-linking/SecurityNote";
-import type { CircleUser } from "@/types/circle";
+import type { PlaidAccount } from "@/types/plaid";
 
 const LinkBank = () => {
-  const [activeTab, setActiveTab] = useState("wallet");
-  const [linkedAccounts, setLinkedAccounts] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState("bank");
+  const [linkedAccounts, setLinkedAccounts] = useState<PlaidAccount[]>([]);
   
   // Track page view
   useEffect(() => {
     trackEvent('link_bank_page_viewed');
   }, []);
   
-  // Handle successful Circle KYC
-  const handleCircleSuccess = (user: CircleUser) => {
-    setLinkedAccounts(prev => [...prev, ...user.wallets]);
-    trackEvent('circle_wallet_linked', { 
-      user_id: user.id,
-      wallet_count: user.wallets.length 
+  // Handle successful bank linking
+  const handleBankLinkSuccess = (accounts: PlaidAccount[], institutionName: string) => {
+    setLinkedAccounts(prev => [...prev, ...accounts]);
+    trackEvent('bank_linked_successfully', { 
+      institution: institutionName,
+      accounts_count: accounts.length 
     });
   };
   
-  // Handle Circle KYC error
-  const handleCircleError = (error?: any) => {
+  // Handle bank linking exit/error
+  const handleBankLinkExit = (error?: any) => {
     if (error) {
-      trackEvent('circle_kyc_failed', { 
-        error_type: error?.type || 'unknown',
-        error_message: error?.message || 'KYC failed' 
+      trackEvent('bank_linking_failed', { 
+        error_type: error.error?.error_type,
+        error_code: error.error?.error_code 
       });
     } else {
-      trackEvent('circle_kyc_cancelled');
+      trackEvent('bank_linking_cancelled');
     }
   };
   
+  // Handle card saved
+  const handleCardSaved = (lastFour: string) => {
+    trackEvent('card_linked', { last_four: lastFour });
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold">Connect Circle Wallet</h1>
+          <h1 className="text-2xl font-bold">Link Bank Account</h1>
           <Button variant="outline" asChild>
             <Link to="/dashboard">Back to Dashboard</Link>
           </Button>
@@ -58,10 +63,10 @@ const LinkBank = () => {
         {/* Intro Banner */}
         <Card className="mb-8">
           <CardHeader>
-            <CardTitle>Connect your Circle wallet</CardTitle>
+            <CardTitle>Securely connect your bank</CardTitle>
             <CardDescription>
-              Complete KYC verification with Circle to create a USDC wallet for 
-              automatic contributions and secure payouts.
+              Link your bank account to enable automatic contributions and receive payouts 
+              directly. Your information is encrypted and secure.
             </CardDescription>
           </CardHeader>
         </Card>
@@ -71,56 +76,63 @@ const LinkBank = () => {
           {/* Linking Options */}
           <Card>
             <CardHeader>
-              <CardTitle>Connect Your Wallet</CardTitle>
+              <CardTitle>Link Your Account</CardTitle>
               <CardDescription>
-                Verify your identity and create a USDC wallet with Circle
+                Choose how you'd like to connect your financial account
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-1">
-                  <TabsTrigger value="wallet">Circle Wallet</TabsTrigger>
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="bank">Bank Account</TabsTrigger>
+                  <TabsTrigger value="card">Credit/Debit Card</TabsTrigger>
                 </TabsList>
                 
-                <TabsContent value="wallet" className="space-y-4">
+                <TabsContent value="bank" className="space-y-4">
                   <div className="text-center py-8">
-                    <h3 className="text-lg font-medium mb-2">Connect with Circle</h3>
+                    <h3 className="text-lg font-medium mb-2">Connect Your Bank</h3>
                     <p className="text-muted-foreground mb-6">
-                      Complete identity verification to create your USDC wallet. Circle provides:
+                      Securely link your bank account using Plaid. This allows us to:
                     </p>
                     <ul className="text-left space-y-2 mb-6">
                       <li className="flex items-center gap-2">
                         <span className="w-2 h-2 bg-primary rounded-full"></span>
-                        Full KYC/AML compliance with regulatory standards
+                        Process automatic contributions to your savings circles
                       </li>
                       <li className="flex items-center gap-2">
                         <span className="w-2 h-2 bg-primary rounded-full"></span>
-                        Secure USDC wallet for payments and transfers
+                        Send payouts directly to your bank account
                       </li>
                       <li className="flex items-center gap-2">
                         <span className="w-2 h-2 bg-primary rounded-full"></span>
-                        On-chain transaction verification and transparency
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <span className="w-2 h-2 bg-primary rounded-full"></span>
-                        Instant settlements and low transaction fees
+                        Check your account balance for smart savings
                       </li>
                     </ul>
                     
-                    <CircleLinkButton
-                      onSuccess={handleCircleSuccess}
-                      onError={handleCircleError}
+                    <PlaidLinkButton
+                      onSuccess={handleBankLinkSuccess}
+                      onExit={handleBankLinkExit}
                       className="w-full"
                     >
-                      Connect with Circle
-                    </CircleLinkButton>
+                      Connect Bank Account
+                    </PlaidLinkButton>
                   </div>
+                </TabsContent>
+                
+                <TabsContent value="card" className="space-y-4">
+                  <div className="text-center py-4">
+                    <h3 className="text-lg font-medium mb-2">Add Payment Card</h3>
+                    <p className="text-muted-foreground mb-6">
+                      Add a credit or debit card for manual contributions and fees.
+                    </p>
+                  </div>
+                  <CardEntryForm onCardSaved={handleCardSaved} />
                 </TabsContent>
               </Tabs>
             </CardContent>
           </Card>
           
-          {/* Connected Wallets */}
+          {/* Linked Accounts */}
           <div>
             <LinkedAccountsList />
           </div>

@@ -53,7 +53,7 @@ export const ContactsPicker: React.FC<ContactsPickerProps> = ({
           onInvitesSent();
         }
       } else {
-        toast.error(`Failed to send invitations: ${'error' in result ? result.error : 'Unknown error'}`);
+        toast.error(`Failed to send invitations: ${result.error}`);
       }
     } catch (err) {
       console.error("Error sending invites:", err);

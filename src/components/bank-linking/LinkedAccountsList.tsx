@@ -5,9 +5,9 @@ import { useLinkedBankAccounts } from "@/hooks/useLinkedBankAccounts";
 import { Loader2, Trash2 } from "lucide-react";
 
 const LinkedAccountsList = () => {
-  const { accounts, loading, error, removeAccount } = useLinkedBankAccounts();
+  const { accounts, isLoading, removeAccount, isRemoving } = useLinkedBankAccounts();
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="mt-6">
         <h3 className="text-lg font-medium mb-3">Linked Accounts</h3>
@@ -67,10 +67,14 @@ const LinkedAccountsList = () => {
                 variant="ghost" 
                 size="sm" 
                 onClick={() => removeAccount(account.id)}
-                disabled={false}
+                disabled={isRemoving}
                 aria-label={`Remove ${account.institution_name} account`}
               >
-                <Trash2 className="h-4 w-4" />
+                {isRemoving ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4" />
+                )}
               </Button>
             </div>
           </div>

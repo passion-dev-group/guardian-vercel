@@ -7,7 +7,7 @@ import { useLinkedBankAccounts } from "@/hooks/useLinkedBankAccounts";
 import type { PlaidAccount } from "@/types/plaid";
 
 const PlaidLinkTest = () => {
-  const { accounts, loading, refreshAccounts } = useLinkedBankAccounts();
+  const { accounts, isLoading, refreshAccounts } = useLinkedBankAccounts();
   const [testResults, setTestResults] = useState<string[]>([]);
 
   const addTestResult = (result: string) => {
@@ -80,7 +80,7 @@ const PlaidLinkTest = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {loading ? (
+          {isLoading ? (
             <p>Loading accounts...</p>
           ) : accounts.length === 0 ? (
             <p className="text-muted-foreground">No accounts linked yet</p>
