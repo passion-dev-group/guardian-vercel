@@ -5,6 +5,7 @@ import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components
 import { useToast } from "@/components/ui/use-toast";
 import { trackEvent } from "@/lib/analytics";
 import { useMembersList } from "@/hooks/useMembersList";
+import { usePaymentReminder } from "@/hooks/usePaymentReminder";
 import MemberListItem from "@/components/circle-details/members/MemberListItem";
 import LoadingSpinner from "@/components/LoadingSpinner";
 
@@ -15,19 +16,28 @@ interface MemberListProps {
 
 const MemberList = ({ circleId, isAdmin }: MemberListProps) => {
   const { members, loading } = useMembersList(circleId);
-  const { toast } = useToast();
+  const { sendReminder, isSending } = usePaymentReminder();
   
-  const handleRemindMember = async (memberId: string, displayName: string | null) => {
-    // In a real app, this would send an actual notification
-    toast({
-      title: "Reminder sent",
-      description: `Payment reminder sent to ${displayName || 'user'}`,
-    });
+  const handleRemindMember = async (memberId: string, displayName: string | null, reminderType: "gentle" | "urgent" | "overdue" = "gentle") => {
+    if (!circleId) return;
     
-    trackEvent('circle_payment_reminder_sent', {
-      circle_id: circleId,
-      recipient_id: memberId
-    });
+    try {
+      const result = await sendReminder({
+        circleId,
+        memberId,
+        reminderType
+      });
+      
+      if (result.success) {
+        trackEvent('circle_payment_reminder_sent', {
+          circle_id: circleId,
+          recipient_id: memberId,
+          reminder_type: reminderType
+        });
+      }
+    } catch (error) {
+      console.error("Error sending reminder:", error);
+    }
   };
   
   if (!circleId) {
@@ -71,6 +81,7 @@ const MemberList = ({ circleId, isAdmin }: MemberListProps) => {
               member={member}
               isAdmin={isAdmin}
               onRemind={handleRemindMember}
+              isReminding={isSending}
             />
           ))}
         </TableBody>

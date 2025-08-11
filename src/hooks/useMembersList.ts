@@ -61,6 +61,16 @@ export const useMembersList = (circleId: string | undefined) => {
               .order('transaction_date', { ascending: false })
               .limit(1);
             
+            // Get the latest reminder sent to this member
+            const { data: lastReminder, error: reminderError } = await supabase
+              .from('circle_transactions')
+              .select('transaction_date')
+              .eq('circle_id', circleId)
+              .eq('user_id', member.user_id)
+              .eq('type', 'reminder')
+              .order('transaction_date', { ascending: false })
+              .limit(1);
+            
             if (txError) {
               console.error("Error fetching transaction data:", txError);
             }
@@ -92,7 +102,8 @@ export const useMembersList = (circleId: string | undefined) => {
                 display_name: profile.display_name || "Anonymous User",
                 avatar_url: profile.avatar_url
               },
-              contribution_status: contributionStatus
+              contribution_status: contributionStatus,
+              last_reminder_date: lastReminder?.[0]?.transaction_date || null
             } as Member;
           }));
           

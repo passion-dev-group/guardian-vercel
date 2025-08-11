@@ -11,6 +11,7 @@ export interface Member {
   next_payout_date: string | null;
   profile: MemberProfile;
   contribution_status?: "paid" | "due" | "overdue";
+  last_reminder_date?: string | null;
 }
 
 export interface Circle {
