@@ -13,6 +13,13 @@ export interface Member {
   profile: MemberProfile;
   contribution_status?: "paid" | "due" | "overdue";
   last_reminder_date?: string | null;
+  contribution_history?: {
+    total_contributions: number;
+    total_payouts: number;
+    contribution_count: number;
+    payout_count: number;
+    last_contribution_date: string | null;
+  };
 }
 
 export interface Circle {

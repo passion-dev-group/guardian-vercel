@@ -7,6 +7,7 @@ import NextPayoutWidget from "@/components/dashboard/NextPayoutWidget";
 import QuickActionsBar from "@/components/dashboard/QuickActionsBar";
 import UserPlanOverview from "@/components/pricing/UserPlanOverview";
 import RotationOverviewWidget from "@/components/dashboard/RotationOverviewWidget";
+import ContributionSummaryWidget from "@/components/dashboard/ContributionSummaryWidget";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import VerificationBanner from "@/components/VerificationBanner";
@@ -23,108 +24,147 @@ const Dashboard = () => {
     circleId: null
   });
 
-  useEffect(() => {
-    const fetchUserCircles = async () => {
-      if (!user) return;
+  const fetchUserCircles = async () => {
+    if (!user) return;
 
-      try {
-        // Fetch circles with member counts in a single optimized query
-        const { data, error } = await supabase
-          .from("circle_members")
-          .select(
-            `
-            circle_id,
-            circles!inner (
-              id,
-              name,
-              contribution_amount,
-              frequency,
-              status,
-              created_at
-            )
+    try {
+      // Fetch circles with member counts in a single optimized query
+      const { data, error } = await supabase
+        .from("circle_members")
+        .select(
           `
+          circle_id,
+          circles!inner (
+            id,
+            name,
+            contribution_amount,
+            frequency,
+            status,
+            created_at
           )
-          .eq("user_id", user.id);
+        `
+        )
+        .eq("user_id", user.id);
 
-        if (error) {
-          console.error("Error fetching circles:", error);
-          return;
-        }
-
-        if (!data || data.length === 0) {
-          setCircles([]);
-          return;
-        }
-
-        // Extract unique circles and get their member counts
-        const circleIds = [...new Set(data.map(member => member.circle_id))];
-        
-        // Fetch member counts for all circles in a single query
-        const { data: memberCounts, error: countError } = await supabase
-          .from('circle_members')
-          .select('circle_id')
-          .in('circle_id', circleIds);
-
-        if (countError) {
-          console.error("Error fetching member counts:", countError);
-        }
-
-        // Count members per circle
-        const memberCountMap = new Map<string, number>();
-        memberCounts?.forEach(member => {
-          const count = memberCountMap.get(member.circle_id) || 0;
-          memberCountMap.set(member.circle_id, count + 1);
-        });
-
-        // Process circles with member counts
-        const processedCircles: Circle[] = data
-          .map(member => member.circles)
-          .filter(Boolean)
-          .map((circle: any) => ({
-            id: circle.id,
-            name: circle.name,
-            contribution_amount: circle.contribution_amount,
-            frequency: circle.frequency,
-            status: circle.status,
-            created_at: circle.created_at,
-            created_by: '', // We need this to satisfy the type but don't have the data
-            memberCount: memberCountMap.get(circle.id) || 0
-          }));
-
-        // Remove duplicates (in case user is in same circle multiple times)
-        const uniqueCircles = processedCircles.filter((circle, index, self) => 
-          index === self.findIndex(c => c.id === circle.id)
-        );
-
-        setCircles(uniqueCircles);
-
-        // Calculate next payout from the first active circle
-        const activeCircle = uniqueCircles.find(circle => circle.status === 'active');
-        if (activeCircle) {
-          // Calculate next payout date based on circle frequency
-          const nextPayoutDate = new Date();
-          if (activeCircle.frequency === 'weekly') {
-            nextPayoutDate.setDate(nextPayoutDate.getDate() + 7);
-          } else if (activeCircle.frequency === 'biweekly') {
-            nextPayoutDate.setDate(nextPayoutDate.getDate() + 14);
-          } else {
-            nextPayoutDate.setMonth(nextPayoutDate.getMonth() + 1);
-          }
-
-          setNextPayout({
-            date: nextPayoutDate,
-            amount: activeCircle.contribution_amount || 0,
-            circleId: activeCircle.id
-          });
-        }
-      } catch (error) {
-        console.error("Error in fetchUserCircles:", error);
-      } finally {
-        setIsLoading(false);
+      if (error) {
+        console.error("Error fetching circles:", error);
+        return;
       }
-    };
 
+      if (!data || data.length === 0) {
+        setCircles([]);
+        return;
+      }
+
+      // Extract unique circles and get their member counts
+      const circleIds = [...new Set(data.map(member => member.circle_id))];
+      
+      // Fetch member counts for all circles in a single query
+      const { data: memberCounts, error: countError } = await supabase
+        .from('circle_members')
+        .select('circle_id')
+        .in('circle_id', circleIds);
+
+      if (countError) {
+        console.error("Error fetching member counts:", countError);
+      }
+
+      // Count members per circle
+      const memberCountMap = new Map<string, number>();
+      memberCounts?.forEach(member => {
+        const count = memberCountMap.get(member.circle_id) || 0;
+        memberCountMap.set(member.circle_id, count + 1);
+      });
+
+      // Process circles with member counts
+      const processedCircles: Circle[] = data
+        .map(member => member.circles)
+        .filter(Boolean)
+        .map((circle: any) => ({
+          id: circle.id,
+          name: circle.name,
+          contribution_amount: circle.contribution_amount,
+          frequency: circle.frequency,
+          status: circle.status,
+          created_at: circle.created_at,
+          created_by: '', // We need this to satisfy the type but don't have the data
+          memberCount: memberCountMap.get(circle.id) || 0
+        }));
+
+      // Remove duplicates (in case user is in same circle multiple times)
+      const uniqueCircles = processedCircles.filter((circle, index, self) => 
+        index === self.findIndex(c => c.id === circle.id)
+      );
+
+      setCircles(uniqueCircles);
+
+      // Calculate next payout from the first active circle
+      const activeCircle = uniqueCircles.find(circle => circle.status === 'active');
+      if (activeCircle) {
+        // Calculate next payout date based on circle frequency
+        const nextPayoutDate = new Date();
+        if (activeCircle.frequency === 'weekly') {
+          nextPayoutDate.setDate(nextPayoutDate.getDate() + 7);
+        } else if (activeCircle.frequency === 'biweekly') {
+          nextPayoutDate.setDate(nextPayoutDate.getDate() + 14);
+        } else {
+          nextPayoutDate.setMonth(nextPayoutDate.getMonth() + 1);
+        }
+
+        setNextPayout({
+          date: nextPayoutDate,
+          amount: activeCircle.contribution_amount || 0,
+          circleId: activeCircle.id
+        });
+      }
+    } catch (error) {
+      console.error("Error in fetchUserCircles:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchUserCircles();
+  }, [user]);
+
+  // Set up real-time subscriptions for live updates
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('dashboard_updates')
+      .on('postgres_changes', 
+        {
+          event: '*',
+          schema: 'public',
+          table: 'circle_transactions',
+          filter: `user_id=eq.${user.id}`
+        },
+        (payload) => {
+          console.log("Dashboard transaction update:", payload);
+          // Refresh circles data when transactions change
+          fetchUserCircles();
+        }
+      )
+      .on('postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'circle_members',
+          filter: `user_id=eq.${user.id}`
+        },
+        (payload) => {
+          console.log("Dashboard membership update:", payload);
+          // Refresh circles data when membership changes
+          fetchUserCircles();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
   return (
@@ -203,10 +243,12 @@ const Dashboard = () => {
               {/* Right column */}
               <div className="space-y-6">
                 <NextPayoutWidget
-                  payoutDate={nextPayout.date}
-                  amount={nextPayout.amount}
-                  circleId={nextPayout.circleId}
+                  payoutDate={null}
+                  amount={0}
+                  circleId={null}
                 />
+                
+                <ContributionSummaryWidget />
                 
                 {/* Show rotation status for the first active circle */}
                 {circles.length > 0 && (

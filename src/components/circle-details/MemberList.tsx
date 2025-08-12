@@ -86,6 +86,14 @@ const MemberList = ({ circleId, isAdmin, currentUserId }: MemberListProps) => {
                 </div>
               </div>
             </TableHead>
+            <TableHead className="hidden lg:table-cell">
+              <div className="flex items-center gap-2">
+                <span>Contribution History</span>
+                <div className="text-xs text-muted-foreground font-normal">
+                  (Total & Count)
+                </div>
+              </div>
+            </TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>

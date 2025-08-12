@@ -13,9 +13,11 @@ import MemberList from "@/components/circle-details/MemberList";
 import ContributionSchedule from "@/components/circle-details/ContributionSchedule";
 import CircleActionsPanel from "@/components/circle-details/CircleActionsPanel";
 import ActivityLog from "@/components/circle-details/ActivityLog";
-import { ContributionCard } from "@/components/circle-details/ContributionCard";
+import RealPaymentProcessor from "@/components/circle-details/RealPaymentProcessor";
 import { PayoutCard } from "@/components/circle-details/PayoutCard";
 import RotationManager from "@/components/circle-details/RotationManager";
+import CircleStatsWidget from "@/components/circle-details/CircleStatsWidget";
+import CircleAnalyticsWidget from "@/components/circle-details/CircleAnalyticsWidget";
 
 const CircleDetails = () => {
   const { circleId } = useParams<{ circleId: string }>();
@@ -140,13 +142,23 @@ const CircleDetails = () => {
           </div>
           
           <div className="space-y-6">
+            <section aria-labelledby="stats-heading">
+              <h2 id="stats-heading" className="text-xl font-semibold mb-4">Circle Statistics</h2>
+              <CircleStatsWidget circleId={circleId!} />
+            </section>
+            
+            <section aria-labelledby="analytics-heading">
+              <h2 id="analytics-heading" className="text-xl font-semibold mb-4">Circle Analytics</h2>
+              <CircleAnalyticsWidget circleId={circleId!} />
+            </section>
+            
             <section aria-labelledby="contribution-heading">
-              <h2 id="contribution-heading" className="text-xl font-semibold mb-4">Your Contributions</h2>
-              <ContributionCard 
+              <h2 id="contribution-heading" className="text-xl font-semibold mb-4">Real Payment Processing</h2>
+              <RealPaymentProcessor 
                 circleId={circleId!}
                 circleName={circle.name}
                 contributionAmount={circle.contribution_amount}
-                frequency={circle.frequency}
+                isAdmin={isAdmin}
               />
             </section>
             

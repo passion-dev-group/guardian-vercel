@@ -51,15 +51,14 @@ export const useMembersList = (circleId: string | undefined) => {
               // Continue with default profile data
             }
             
-            // Get the latest contribution status for this member
+            // Get comprehensive contribution data for this member
             const { data: transactions, error: txError } = await supabase
               .from('circle_transactions')
-              .select('transaction_date, status')
+              .select('transaction_date, status, amount, type')
               .eq('circle_id', circleId)
               .eq('user_id', member.user_id)
-              .eq('type', 'contribution')
-              .order('transaction_date', { ascending: false })
-              .limit(1);
+              .in('type', ['contribution', 'payout'])
+              .order('transaction_date', { ascending: false });
             
             // Get the latest reminder sent to this member
             const { data: lastReminder, error: reminderError } = await supabase
@@ -75,19 +74,48 @@ export const useMembersList = (circleId: string | undefined) => {
               console.error("Error fetching transaction data:", txError);
             }
             
+            // Calculate contribution status and history
             let contributionStatus: "paid" | "due" | "overdue" = "due";
+            let lastContributionDate: string | null = null;
+            let totalContributions = 0;
+            let totalPayouts = 0;
+            let contributionCount = 0;
+            let payoutCount = 0;
             
             if (transactions && transactions.length > 0) {
-              const lastContribution = transactions[0];
-              const lastContributionDate = new Date(lastContribution.transaction_date);
-              const oneMonthAgo = new Date();
-              oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+              transactions.forEach(tx => {
+                if (tx.type === 'contribution') {
+                  if (tx.status === 'completed') {
+                    totalContributions += tx.amount;
+                    contributionCount++;
+                    if (!lastContributionDate) {
+                      lastContributionDate = tx.transaction_date;
+                    }
+                  }
+                } else if (tx.type === 'payout' && tx.status === 'completed') {
+                  totalPayouts += tx.amount;
+                  payoutCount++;
+                }
+              });
               
-              if (lastContribution.status === "completed") {
-                contributionStatus = lastContributionDate > oneMonthAgo ? "paid" : "due";
-              } else {
-                contributionStatus = "overdue";
+              // Determine contribution status
+              if (lastContributionDate) {
+                const lastContributionDateObj = new Date(lastContributionDate);
+                const oneMonthAgo = new Date();
+                oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+                
+                contributionStatus = lastContributionDateObj > oneMonthAgo ? "paid" : "due";
               }
+            }
+            
+            // Calculate estimated next payout date based on position
+            let estimatedNextPayoutDate: string | null = null;
+            if (member.payout_position && member.payout_position > 1) {
+              // Estimate based on frequency (assuming monthly for now)
+              const baseDate = new Date();
+              const monthsToAdd = member.payout_position - 1;
+              baseDate.setMonth(baseDate.getMonth() + monthsToAdd);
+              estimatedNextPayoutDate = baseDate.toISOString();
             }
             
             // Create profile data structure with fallbacks
@@ -97,14 +125,21 @@ export const useMembersList = (circleId: string | undefined) => {
               id: member.id,
               user_id: member.user_id,
               payout_position: member.payout_position,
-              next_payout_date: member.next_payout_date,
+              next_payout_date: member.next_payout_date || estimatedNextPayoutDate,
               is_admin: member.is_admin || false,
               profile: {
                 display_name: profile.display_name || "Anonymous User",
                 avatar_url: profile.avatar_url
               },
               contribution_status: contributionStatus,
-              last_reminder_date: lastReminder?.[0]?.transaction_date || null
+              last_reminder_date: lastReminder?.[0]?.transaction_date || null,
+              contribution_history: {
+                total_contributions: totalContributions,
+                total_payouts: totalPayouts,
+                contribution_count: contributionCount,
+                payout_count: payoutCount,
+                last_contribution_date: lastContributionDate
+              }
             } as Member;
           }));
           
