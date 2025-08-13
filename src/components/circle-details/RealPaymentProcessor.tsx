@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,13 +34,12 @@ interface RealPaymentProcessorProps {
 interface LinkedAccount {
   id: string;
   account_id: string;
-  access_token: string;
+  plaid_access_token: string;
   institution_name: string;
   account_name: string;
   account_type: string;
   account_subtype: string;
   mask: string;
-  current_balance: number;
 }
 
 const RealPaymentProcessor = ({ 
@@ -83,7 +83,7 @@ const RealPaymentProcessor = ({
         .from('linked_bank_accounts')
         .select('*')
         .eq('user_id', user?.id)
-        .eq('status', 'active');
+        .eq('is_active', true);
 
       if (error) throw error;
 
@@ -113,7 +113,7 @@ const RealPaymentProcessor = ({
       userId: user.id,
       amount: customAmount,
       accountId: account.account_id,
-      accessToken: account.access_token
+      accessToken: account.plaid_access_token
     };
 
     try {
@@ -165,9 +165,14 @@ const RealPaymentProcessor = ({
               <p className="text-sm">No linked bank accounts found</p>
               <p className="text-xs">Link your bank account to start making real payments</p>
             </div>
-            <Button variant="outline" size="sm">
-              Link Bank Account
-            </Button>
+            <div className="flex gap-2 justify-center">
+              <Button variant="outline" size="sm" asChild>
+                <Link to="/link-bank">Link Bank Account</Link>
+              </Button>
+              <Button variant="outline" size="sm" onClick={fetchLinkedAccounts}>
+                Refresh
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -212,7 +217,21 @@ const RealPaymentProcessor = ({
 
         {/* Bank Account Selection */}
         <div className="space-y-2">
-          <Label>Bank Account</Label>
+          <div className="flex items-center justify-between">
+            <Label>Bank Account</Label>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={fetchLinkedAccounts}
+              disabled={accountsLoading}
+            >
+              {accountsLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
           <Select value={selectedAccount} onValueChange={setSelectedAccount}>
             <SelectTrigger>
               <SelectValue placeholder="Select bank account" />
@@ -234,9 +253,14 @@ const RealPaymentProcessor = ({
           
           {selectedAccountData && (
             <div className="text-xs text-muted-foreground">
-              Available balance: {formatCurrency(selectedAccountData.current_balance)}
+              Account: {selectedAccountData.account_name} •••• {selectedAccountData.mask}
             </div>
           )}
+          <div className="text-xs text-muted-foreground">
+            <Link to="/link-bank" className="text-primary hover:underline">
+              + Add another bank account
+            </Link>
+          </div>
         </div>
 
         {/* Amount Input */}
