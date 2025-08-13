@@ -16,11 +16,11 @@ serve(async (req) => {
 
   try {
     // Get the request body
-    const { 
-      user_id, 
-      circle_id, 
-      amount, 
-      account_id, 
+    const {
+      user_id,
+      circle_id,
+      amount,
+      account_id,
       access_token,
       description
     } = await req.json()
@@ -195,7 +195,7 @@ serve(async (req) => {
 
     // Get phone number from user's profile (primary source for payment processing)
     let userPhoneNumber = userProfile.phone;
-    
+
     if (!userPhoneNumber) {
       console.error('User profile missing phone number');
       return new Response(
@@ -212,37 +212,33 @@ serve(async (req) => {
       network: 'ach' as const,
       amount: amount.toFixed(2),
       ach_class: 'ppd' as const, // Personal account
-              user: {
-          legal_name: userProfile.display_name || 'Unknown User',
-          phone_number: userPhoneNumber, // Use phone number from user profile
-          email_address: userEmail || 'user@example.com',
-          address: {
-            street: userProfile.address_street || undefined,
-            city: userProfile.address_city || undefined,
-            state: userProfile.address_state || undefined,
-            zip: userProfile.address_zip || undefined,
-            country: userProfile.address_country || 'US',
-          },
+      user: {
+        legal_name: userProfile.display_name || 'Unknown User',
+        phone_number: userPhoneNumber, // Use phone number from user profile
+        email_address: userEmail || 'user@example.com',
+        address: {
+          street: userProfile.address_street || undefined,
+          city: userProfile.address_city || undefined,
+          region: userProfile.address_state || undefined, // Plaid expects 'region' not 'state'
+          postal_code: userProfile.address_zip || undefined, // Plaid expects 'postal_code' not 'zip'
+          country: userProfile.address_country || 'US',
         },
-      device: {
-        user_agent: req.headers.get('user-agent') || 'Savings Circle App/1.0',
-        ip_address: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1',
       },
     }
 
     // Remove undefined fields to avoid Plaid API errors
-    // Note: phone_number is always included from bank account
+    // Note: phone_number is always included from user profile
     if (!authorizationRequest.user.address.street) {
       delete authorizationRequest.user.address.street;
     }
     if (!authorizationRequest.user.address.city) {
       delete authorizationRequest.user.address.city;
     }
-    if (!authorizationRequest.user.address.state) {
-      delete authorizationRequest.user.address.state;
+    if (!authorizationRequest.user.address.region) {
+      delete authorizationRequest.user.address.region;
     }
-    if (!authorizationRequest.user.address.zip) {
-      delete authorizationRequest.user.address.zip;
+    if (!authorizationRequest.user.address.postal_code) {
+      delete authorizationRequest.user.address.postal_code;
     }
 
     console.log('Creating transfer authorization for contribution:', {
@@ -285,18 +281,19 @@ serve(async (req) => {
         )
       }
 
-      // Create the actual transfer
+      // Create the actual transfer using the correct Plaid Transfer API
+      // Ensure description meets Plaid's requirements: non-empty, max 15 characters
+      let transferDescription = `Circle: ${circle.name}`.substring(0, 15);
+      if (!transferDescription.trim()) {
+        transferDescription = 'Circle Contrib'; // Fallback if circle name is empty
+      }
+      
       const transferRequest = {
         access_token: access_token,
         account_id: account_id,
         authorization_id: authorization.id,
-        type: 'debit' as const,
-        network: 'ach' as const,
         amount: amount.toFixed(2),
-        description: `Contribution to ${circle.name} savings circle`,
-        ach_class: 'ppd' as const,
-        user: authorizationRequest.user,
-        device: authorizationRequest.device,
+        description: transferDescription,
       }
 
       console.log('Creating transfer for contribution:', transferRequest)
@@ -320,7 +317,7 @@ serve(async (req) => {
 
     } catch (plaidError) {
       console.error('Plaid transfer error:', plaidError)
-      
+
       // Update transaction status to failed
       await supabase
         .from('circle_transactions')

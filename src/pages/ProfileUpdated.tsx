@@ -24,6 +24,7 @@ const Profile = () => {
   const { badges, isLoading: badgesLoading } = useUserBadges();
   const { userTier, isLoading: tierLoading } = useUserTier();
   const [displayName, setDisplayName] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [isFormModified, setIsFormModified] = useState(false);
@@ -41,6 +42,7 @@ const Profile = () => {
   useEffect(() => {
     if (profile) {
       setDisplayName(profile.display_name || '');
+      setPhoneNumber(profile.phone || '');
       setAvatarUrl(profile.avatar_url);
       setAddressStreet(profile.address_street || '');
       setAddressCity(profile.address_city || '');
@@ -56,6 +58,7 @@ const Profile = () => {
     
     const isModified = 
       (displayName !== (profile.display_name || '')) || 
+      (phoneNumber !== (profile.phone || '')) ||
       (avatarFile !== null) ||
       (addressStreet !== (profile.address_street || '')) ||
       (addressCity !== (profile.address_city || '')) ||
@@ -116,6 +119,7 @@ const Profile = () => {
       // Then update the profile
       await updateProfile({
         display_name: displayName,
+        phone: phoneNumber,
         avatar_url: updatedAvatarUrl,
         address_street: addressStreet,
         address_city: addressCity,
@@ -259,6 +263,23 @@ const Profile = () => {
                             placeholder="Enter your display name"
                             aria-label="Display Name"
                           />
+                        </div>
+
+                        <div className="space-y-3">
+                          <label htmlFor="phoneNumber" className="block text-sm font-medium">
+                            Phone Number
+                          </label>
+                          <Input
+                            id="phoneNumber"
+                            type="tel"
+                            value={phoneNumber}
+                            onChange={(e) => setPhoneNumber(e.target.value)}
+                            placeholder="+1 (555) 123-4567"
+                            aria-label="Phone Number"
+                          />
+                          <p className="text-xs text-gray-500">
+                            Your phone number is used for payment processing and account verification
+                          </p>
                         </div>
 
                         {/* Address Section */}

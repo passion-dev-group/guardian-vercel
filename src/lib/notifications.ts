@@ -22,9 +22,9 @@ export class PaymentNotificationService {
     const { type, success, amount, circleName, transactionId, error, recipientName, plaidTransferId } = data;
 
     if (success) {
-      this.showSuccessNotification(data);
+      this.showPaymentSuccessNotification(data);
     } else {
-      this.showErrorNotification(data);
+      this.showPaymentErrorNotification(data);
     }
 
     // Track the notification event
@@ -41,7 +41,7 @@ export class PaymentNotificationService {
   /**
    * Show success notification for payments
    */
-  private static showSuccessNotification(data: PaymentNotificationData) {
+  private static showPaymentSuccessNotification(data: PaymentNotificationData) {
     const { type, amount, circleName, recipientName } = data;
 
     if (type === 'contribution') {
@@ -62,7 +62,7 @@ export class PaymentNotificationService {
   /**
    * Show error notification for failed payments
    */
-  private static showErrorNotification(data: PaymentNotificationData) {
+  private static showPaymentErrorNotification(data: PaymentNotificationData) {
     const { type, amount, circleName, error } = data;
 
     const errorMessage = error || "An unexpected error occurred. Please try again.";
@@ -148,25 +148,25 @@ export class PaymentNotificationService {
   }
 
   /**
+   * Show general success notification
+   */
+  static showGeneralSuccessNotification(title: string, message: string) {
+    toast({
+      title,
+      description: message,
+      duration: 4000,
+    });
+  }
+
+  /**
    * Show general error notification
    */
-  static showErrorNotification(title: string, message: string) {
+  static showGeneralErrorNotification(title: string, message: string) {
     toast({
       title,
       description: message,
       variant: "destructive",
       duration: 6000,
-    });
-  }
-
-  /**
-   * Show general success notification
-   */
-  static showSuccessNotification(title: string, message: string) {
-    toast({
-      title,
-      description: message,
-      duration: 4000,
     });
   }
 }
