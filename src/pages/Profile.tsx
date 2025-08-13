@@ -45,6 +45,26 @@ const Profile = () => {
                       <label className="block text-sm font-medium text-gray-500">Phone</label>
                       <div className="mt-1 text-gray-900">{profile.phone || "Not set"}</div>
                     </div>
+                    
+                    {/* Address Information */}
+                    {(profile.address_street || profile.address_city || profile.address_state || profile.address_zip) && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-500">Address</label>
+                        <div className="mt-1 text-gray-900">
+                          {profile.address_street && <div>{profile.address_street}</div>}
+                          {(profile.address_city || profile.address_state || profile.address_zip) && (
+                            <div>
+                              {[profile.address_city, profile.address_state, profile.address_zip]
+                                .filter(Boolean)
+                                .join(', ')}
+                            </div>
+                          )}
+                          {profile.address_country && profile.address_country !== 'US' && (
+                            <div>{profile.address_country}</div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

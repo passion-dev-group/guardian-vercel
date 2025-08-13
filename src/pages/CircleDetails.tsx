@@ -152,7 +152,7 @@ const CircleDetails = () => {
               <CircleAnalyticsWidget circleId={circleId!} />
             </section>
             
-            <section aria-labelledby="contribution-heading">
+            {/* <section aria-labelledby="contribution-heading">
               <h2 id="contribution-heading" className="text-xl font-semibold mb-4">Real Payment Processing</h2>
               <RealPaymentProcessor 
                 circleId={circleId!}
@@ -160,7 +160,7 @@ const CircleDetails = () => {
                 contributionAmount={circle.contribution_amount}
                 isAdmin={isAdmin}
               />
-            </section>
+            </section> */}
             
             {isAdmin && (
               <section aria-labelledby="payout-heading">

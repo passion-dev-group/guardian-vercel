@@ -71,6 +71,7 @@ export interface LinkedBankAccount {
   mask: string;
   verification_status: string;
   is_active: boolean;
+  phone_number?: string | null;
   created_at: string;
   updated_at: string;
 }

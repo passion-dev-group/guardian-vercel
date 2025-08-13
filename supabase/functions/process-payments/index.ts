@@ -178,6 +178,28 @@ async function initiatePlaidTransfer(
 
     if (profileError) throw profileError;
 
+    // Get user's email from auth.users if not in profile
+    let userEmail = profile.email;
+    if (!userEmail) {
+      try {
+        const { data: { user }, error: authError } = await supabase.auth.admin.getUserById(userId);
+        if (!authError && user) {
+          userEmail = user.email;
+        }
+      } catch (authError) {
+        console.error('Error fetching user email from auth:', authError);
+      }
+    }
+
+    // Validate required profile data
+    if (!profile.display_name) {
+      throw new Error('User profile is incomplete. Please complete your profile before making payments.');
+    }
+
+    if (!userEmail) {
+      throw new Error('User email address is required for payment processing.');
+    }
+
     // Get circle details
     const { data: circle, error: circleError } = await supabase
       .from('circles')
@@ -204,12 +226,8 @@ async function initiatePlaidTransfer(
         ach_class: "ppd",
         user: {
           legal_name: profile.display_name || "User",
-          email_address: profile.email || "",
+          email_address: userEmail || "",
           address: {
-            street: "123 Main St",
-            city: "City",
-            state: "ST",
-            zip: "12345",
             country: "US"
           }
         },
@@ -249,12 +267,8 @@ async function initiatePlaidTransfer(
         ach_class: "ppd",
         user: {
           legal_name: profile.display_name || "User",
-          email_address: profile.email || "",
+          email_address: userEmail || "",
           address: {
-            street: "123 Main St",
-            city: "City",
-            state: "ST",
-            zip: "12345",
             country: "US"
           }
         },
@@ -429,6 +443,28 @@ async function processPayout(
 
     if (profileError) throw profileError;
 
+    // Get user's email from auth.users if not in profile
+    let userEmail = profile.email;
+    if (!userEmail) {
+      try {
+        const { data: { user }, error: authError } = await supabase.auth.admin.getUserById(userId);
+        if (!authError && user) {
+          userEmail = user.email;
+        }
+      } catch (authError) {
+        console.error('Error fetching user email from auth:', authError);
+      }
+    }
+
+    // Validate required profile data
+    if (!profile.display_name) {
+      throw new Error('User profile is incomplete. Please complete your profile before processing payouts.');
+    }
+
+    if (!userEmail) {
+      throw new Error('User email address is required for payout processing.');
+    }
+
     // Get circle details
     const { data: circle, error: circleError } = await supabase
       .from('circles')
@@ -455,12 +491,8 @@ async function processPayout(
         ach_class: "ppd",
         user: {
           legal_name: profile.display_name || "User",
-          email_address: profile.email || "",
+          email_address: userEmail || "",
           address: {
-            street: "123 Main St",
-            city: "City",
-            state: "ST",
-            zip: "12345",
             country: "US"
           }
         },
@@ -500,12 +532,8 @@ async function processPayout(
         ach_class: "ppd",
         user: {
           legal_name: profile.display_name || "User",
-          email_address: profile.email || "",
+          email_address: userEmail || "",
           address: {
-            street: "123 Main St",
-            city: "City",
-            state: "ST",
-            zip: "12345",
             country: "US"
           }
         },

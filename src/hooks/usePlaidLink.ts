@@ -5,6 +5,7 @@ import { trackEvent } from "@/lib/analytics";
 import { plaidService } from "@/lib/plaid";
 import { PaymentNotificationService } from "@/lib/notifications";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import type { PlaidAccount } from "@/types/plaid";
 
 interface UsePlaidLinkResult {
@@ -71,9 +72,35 @@ export const usePlaidLink = (options: UsePlaidLinkOptions = {}): UsePlaidLinkRes
       // Exchange public token for access token
       const tokenResponse = await plaidService.exchangePublicToken(publicToken);
 
-      // Get account details
+      // Get account details with enhanced information
       const accounts = await plaidService.getAccounts(tokenResponse.access_token);
       console.log('accounts', accounts);
+      
+      // Get phone number from user's profile (primary source)
+      let phoneNumber: string | null = null;
+      
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('phone')
+            .eq('id', user.id)
+            .single();
+          
+          if (profile?.phone) {
+            phoneNumber = profile.phone;
+            console.log('Using phone number from user profile:', phoneNumber);
+          } else {
+            console.log('No phone number found in user profile');
+          }
+        }
+      } catch (error) {
+        console.log('Could not get phone number from user profile:', error);
+      }
+      
+      console.log('Phone number for bank account:', phoneNumber);
+      
       // Save each account to database
       const savedAccounts = [];
       for (const account of accounts) {
@@ -88,6 +115,7 @@ export const usePlaidLink = (options: UsePlaidLinkOptions = {}): UsePlaidLinkRes
           account_subtype: account.subtype,
           mask: account.mask,
           verification_status: account.verification_status,
+          phone_number: phoneNumber,
           is_active: true,
         });
         savedAccounts.push(savedAccount);

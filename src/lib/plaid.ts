@@ -82,7 +82,7 @@ class PlaidService {
         },
         body: JSON.stringify({ access_token: accessToken }),
       });
-
+      console.log('***getAccounts response***', response);
       if (!response.ok) {
         throw new Error(`Failed to get accounts: ${response.statusText}`);
       }
@@ -128,23 +128,24 @@ class PlaidService {
   async saveLinkedAccount(accountData: Omit<LinkedBankAccount, 'id' | 'created_at' | 'updated_at'>): Promise<LinkedBankAccount> {
     try {
       console.log('accountData', accountData);
-      const { data, error } = await supabase
-        .from('linked_bank_accounts')
-        .insert({
-          user_id: accountData.user_id,
-          plaid_item_id: accountData.plaid_item_id,
-          plaid_access_token: accountData.plaid_access_token,
-          institution_name: accountData.institution_name,
-          account_id: accountData.account_id,
-          account_name: accountData.account_name,
-          account_type: accountData.account_type,
-          account_subtype: accountData.account_subtype,
-          mask: accountData.mask,
-          verification_status: accountData.verification_status,
-          is_active: accountData.is_active,
-        })
-        .select()
-        .single();
+              const { data, error } = await supabase
+          .from('linked_bank_accounts')
+          .insert({
+            user_id: accountData.user_id,
+            plaid_item_id: accountData.plaid_item_id,
+            plaid_access_token: accountData.plaid_access_token,
+            institution_name: accountData.institution_name,
+            account_id: accountData.account_id,
+            account_name: accountData.account_name,
+            account_type: accountData.account_type,
+            account_subtype: accountData.account_subtype,
+            mask: accountData.mask,
+            verification_status: accountData.verification_status,
+            phone_number: accountData.phone_number,
+            is_active: accountData.is_active,
+          })
+          .select()
+          .single();
 
       if (error) {
         throw error;

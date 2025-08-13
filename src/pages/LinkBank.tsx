@@ -27,7 +27,7 @@ const LinkBank = () => {
     setLinkedAccounts(prev => [...prev, ...accounts]);
     trackEvent('bank_linked_successfully', { 
       institution: institutionName,
-      accounts_count: accounts.length 
+      accounts_count: accounts.length
     });
   };
   

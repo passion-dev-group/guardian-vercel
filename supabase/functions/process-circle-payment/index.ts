@@ -163,6 +163,47 @@ serve(async (req) => {
       )
     }
 
+    // Get user's email from auth.users if not in profile
+    let userEmail = userProfile.email;
+    if (!userEmail) {
+      try {
+        const { data: { user }, error: authError } = await supabase.auth.admin.getUserById(user_id);
+        if (!authError && user) {
+          userEmail = user.email;
+        }
+      } catch (authError) {
+        console.error('Error fetching user email from auth:', authError);
+      }
+    }
+
+    // Validate required profile data
+    if (!userProfile.display_name) {
+      console.error('User profile missing display_name:', userProfile);
+      return new Response(
+        JSON.stringify({ error: 'User profile is incomplete. Please complete your profile before making payments.' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      )
+    }
+
+    if (!userEmail) {
+      console.error('User has no email address:', userProfile);
+      return new Response(
+        JSON.stringify({ error: 'User email address is required for payment processing.' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      )
+    }
+
+    // Get phone number from user's profile (primary source for payment processing)
+    let userPhoneNumber = userProfile.phone;
+    
+    if (!userPhoneNumber) {
+      console.error('User profile missing phone number');
+      return new Response(
+        JSON.stringify({ error: 'Phone number is required for payment processing. Please update your profile with a phone number.' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      )
+    }
+
     // Create transfer authorization
     const authorizationRequest = {
       access_token: access_token,
@@ -171,23 +212,47 @@ serve(async (req) => {
       network: 'ach' as const,
       amount: amount.toFixed(2),
       ach_class: 'ppd' as const, // Personal account
-      user: {
-        legal_name: userProfile.display_name || 'Unknown User',
-        phone_number: userProfile.phone || '+16789955537',
-        email_address: userProfile.email || 'user@example.com',
-        address: {
-          street: userProfile.address?.street || '123 Main St',
-          city: userProfile.address?.city || 'City',
-          country: userProfile.address?.country || 'US',
+              user: {
+          legal_name: userProfile.display_name || 'Unknown User',
+          phone_number: userPhoneNumber, // Use phone number from user profile
+          email_address: userEmail || 'user@example.com',
+          address: {
+            street: userProfile.address_street || undefined,
+            city: userProfile.address_city || undefined,
+            state: userProfile.address_state || undefined,
+            zip: userProfile.address_zip || undefined,
+            country: userProfile.address_country || 'US',
+          },
         },
-      },
       device: {
-        user_agent: 'Savings Circle App/1.0',
-        ip_address: '127.0.0.1', // In production, get from request headers
+        user_agent: req.headers.get('user-agent') || 'Savings Circle App/1.0',
+        ip_address: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1',
       },
     }
 
-    console.log('Creating transfer authorization for contribution:', authorizationRequest)
+    // Remove undefined fields to avoid Plaid API errors
+    // Note: phone_number is always included from bank account
+    if (!authorizationRequest.user.address.street) {
+      delete authorizationRequest.user.address.street;
+    }
+    if (!authorizationRequest.user.address.city) {
+      delete authorizationRequest.user.address.city;
+    }
+    if (!authorizationRequest.user.address.state) {
+      delete authorizationRequest.user.address.state;
+    }
+    if (!authorizationRequest.user.address.zip) {
+      delete authorizationRequest.user.address.zip;
+    }
+
+    console.log('Creating transfer authorization for contribution:', {
+      ...authorizationRequest,
+      access_token: '***REDACTED***', // Don't log sensitive data
+      user: {
+        ...authorizationRequest.user,
+        phone_number: authorizationRequest.user.phone_number ? '***REDACTED***' : undefined
+      }
+    })
 
     let authorization: any;
     let transfer: any;

@@ -15,7 +15,7 @@ serve(async (req) => {
 
   try {
     // Get the request body
-    const { access_token } = await req.json()
+    const { access_token, include_details } = await req.json()
 
     if (!access_token) {
       return new Response(
@@ -42,9 +42,45 @@ serve(async (req) => {
       access_token: access_token,
     })
 
+    let accounts = accountsResponse.data.accounts;
+
+    // If include_details is true, try to get additional account information
+    if (include_details) {
+      try {
+        // Get item information which might include phone numbers
+        const itemResponse = await plaidClient.itemGet({
+          access_token: access_token,
+        });
+
+        // Get identity information if available
+        let identityInfo = null;
+        try {
+          const identityResponse = await plaidClient.identityGet({
+            access_token: access_token,
+          });
+          identityInfo = identityResponse.data;
+        } catch (identityError) {
+          console.log('Could not get identity info:', identityError);
+        }
+
+        // Enhance accounts with additional information
+        accounts = accounts.map(account => ({
+          ...account,
+          // Add phone number from identity if available
+          phone_number: identityInfo?.accounts?.find(acc => acc.account_id === account.account_id)?.phone_numbers?.[0] || null,
+          // Add item information
+          item_id: itemResponse.data.item.item_id,
+          institution_id: itemResponse.data.item.institution_id,
+        }));
+      } catch (detailsError) {
+        console.log('Could not get detailed account info:', detailsError);
+        // Continue with basic account info if detailed info fails
+      }
+    }
+
     return new Response(
       JSON.stringify({
-        accounts: accountsResponse.data.accounts,
+        accounts: accounts,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )

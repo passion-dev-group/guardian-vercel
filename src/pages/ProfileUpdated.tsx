@@ -30,11 +30,23 @@ const Profile = () => {
   const [activeTab, setActiveTab] = useState('profile');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  // Address fields
+  const [addressStreet, setAddressStreet] = useState('');
+  const [addressCity, setAddressCity] = useState('');
+  const [addressState, setAddressState] = useState('');
+  const [addressZip, setAddressZip] = useState('');
+  const [addressCountry, setAddressCountry] = useState('US');
+  
   // Initialize form when profile is loaded
   useEffect(() => {
     if (profile) {
       setDisplayName(profile.display_name || '');
       setAvatarUrl(profile.avatar_url);
+      setAddressStreet(profile.address_street || '');
+      setAddressCity(profile.address_city || '');
+      setAddressState(profile.address_state || '');
+      setAddressZip(profile.address_zip || '');
+      setAddressCountry(profile.address_country || 'US');
     }
   }, [profile]);
   
@@ -44,10 +56,15 @@ const Profile = () => {
     
     const isModified = 
       (displayName !== (profile.display_name || '')) || 
-      (avatarFile !== null);
+      (avatarFile !== null) ||
+      (addressStreet !== (profile.address_street || '')) ||
+      (addressCity !== (profile.address_city || '')) ||
+      (addressState !== (profile.address_state || '')) ||
+      (addressZip !== (profile.address_zip || '')) ||
+      (addressCountry !== (profile.address_country || 'US'));
       
     setIsFormModified(isModified);
-  }, [displayName, avatarFile, profile]);
+  }, [displayName, avatarFile, profile, addressStreet, addressCity, addressState, addressZip, addressCountry]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) {
@@ -99,7 +116,12 @@ const Profile = () => {
       // Then update the profile
       await updateProfile({
         display_name: displayName,
-        avatar_url: updatedAvatarUrl
+        avatar_url: updatedAvatarUrl,
+        address_street: addressStreet,
+        address_city: addressCity,
+        address_state: addressState,
+        address_zip: addressZip,
+        address_country: addressCountry
       });
       
       // Reset the file input
@@ -237,6 +259,86 @@ const Profile = () => {
                             placeholder="Enter your display name"
                             aria-label="Display Name"
                           />
+                        </div>
+
+                        {/* Address Section */}
+                        <div className="space-y-4">
+                          <h3 className="text-lg font-medium">Address Information</h3>
+                          <p className="text-sm text-muted-foreground">
+                            Your address is used for payment processing and compliance requirements.
+                          </p>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-3">
+                              <label htmlFor="addressStreet" className="block text-sm font-medium">
+                                Street Address
+                              </label>
+                              <Input
+                                id="addressStreet"
+                                type="text"
+                                value={addressStreet}
+                                onChange={(e) => setAddressStreet(e.target.value)}
+                                placeholder="Enter street address"
+                                aria-label="Street Address"
+                              />
+                            </div>
+                            
+                            <div className="space-y-3">
+                              <label htmlFor="addressCity" className="block text-sm font-medium">
+                                City
+                              </label>
+                              <Input
+                                id="addressCity"
+                                type="text"
+                                value={addressCity}
+                                onChange={(e) => setAddressCity(e.target.value)}
+                                placeholder="Enter city"
+                                aria-label="City"
+                              />
+                            </div>
+                            
+                            <div className="space-y-3">
+                              <label htmlFor="addressState" className="block text-sm font-medium">
+                                State/Province
+                              </label>
+                              <Input
+                                id="addressState"
+                                type="text"
+                                value={addressState}
+                                onChange={(e) => setAddressState(e.target.value)}
+                                placeholder="Enter state or province"
+                                aria-label="State/Province"
+                              />
+                            </div>
+                            
+                            <div className="space-y-3">
+                              <label htmlFor="addressZip" className="block text-sm font-medium">
+                                ZIP/Postal Code
+                              </label>
+                              <Input
+                                id="addressZip"
+                                type="text"
+                                value={addressZip}
+                                onChange={(e) => setAddressZip(e.target.value)}
+                                placeholder="Enter ZIP or postal code"
+                                aria-label="ZIP/Postal Code"
+                              />
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-3">
+                            <label htmlFor="addressCountry" className="block text-sm font-medium">
+                              Country
+                            </label>
+                            <Input
+                              id="addressCountry"
+                              type="text"
+                              value={addressCountry}
+                              onChange={(e) => setAddressCountry(e.target.value)}
+                              placeholder="Enter country"
+                              aria-label="Country"
+                            />
+                          </div>
                         </div>
                       </form>
                     </CardContent>
