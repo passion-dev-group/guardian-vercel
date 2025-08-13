@@ -1,183 +1,260 @@
-# Supabase CLI
+# MiTurn - Fintech Savings Circles Application
 
-[![Coverage Status](https://coveralls.io/repos/github/supabase/cli/badge.svg?branch=main)](https://coveralls.io/github/supabase/cli?branch=main) [![Bitbucket Pipelines](https://img.shields.io/bitbucket/pipelines/supabase-cli/setup-cli/master?style=flat-square&label=Bitbucket%20Canary)](https://bitbucket.org/supabase-cli/setup-cli/pipelines) [![Gitlab Pipeline Status](https://img.shields.io/gitlab/pipeline-status/sweatybridge%2Fsetup-cli?label=Gitlab%20Canary)
-](https://gitlab.com/sweatybridge/setup-cli/-/pipelines)
+[![Vercel](https://img.shields.io/badge/Deploy%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/new/clone?repository-url=https://github.com/yourusername/miturn)
 
-[Supabase](https://supabase.io) is an open source Firebase alternative. We're building the features of Firebase using enterprise-grade open source tools.
+MiTurn is a comprehensive fintech web application that facilitates group savings through "savings circles" (rotating credit associations). It combines social savings features with individual goal tracking, gamification, and financial management tools.
 
-This repository contains all the functionality for Supabase CLI.
+## 🚀 Quick Deploy to Vercel
 
-- [x] Running Supabase locally
-- [x] Managing database migrations
-- [x] Creating and deploying Supabase Functions
-- [x] Generating types directly from your database schema
-- [x] Making authenticated HTTP requests to [Management API](https://supabase.com/docs/reference/api/introduction)
+### Option 1: Deploy with Vercel CLI (Recommended)
 
-## Getting started
+1. **Install Vercel CLI**
+   ```bash
+   npm i -g vercel
+   ```
 
-### Install the CLI
+2. **Clone and deploy**
+   ```bash
+   git clone https://github.com/yourusername/miturn.git
+   cd miturn
+   vercel
+   ```
 
-Available via [NPM](https://www.npmjs.com) as dev dependency. To install:
+3. **Follow the prompts** and deploy to your Vercel account
 
+### Option 2: Deploy via Vercel Dashboard
+
+1. **Fork/Clone this repository** to your GitHub account
+2. **Go to [Vercel Dashboard](https://vercel.com/dashboard)**
+3. **Click "New Project"**
+4. **Import your GitHub repository**
+5. **Configure environment variables** (see below)
+6. **Deploy!**
+
+## 🏗️ Project Overview
+
+### Core Features
+- **Savings Circles Management** - Create, join, and manage rotating credit associations
+- **Financial Management** - Bank account linking via Plaid, payment processing
+- **Individual Savings Goals** - Personal goal tracking with automated allocations
+- **Social Features** - Gamification, achievements, and community engagement
+- **Analytics & Reporting** - Comprehensive financial insights and performance metrics
+
+### Technology Stack
+- **Frontend**: React 18 + TypeScript, Vite, Tailwind CSS, Shadcn/ui
+- **Backend**: Supabase (PostgreSQL, Auth, Edge Functions)
+- **Payment Processing**: Plaid API integration
+- **Deployment**: Vercel (Frontend) + Supabase (Backend)
+
+## ⚙️ Environment Setup
+
+### Prerequisites
+- Node.js 18+ 
+- npm/yarn/pnpm
+- Supabase account
+- Plaid account (for payment processing)
+- SendGrid account (for email notifications)
+
+### Environment Variables
+
+Create a `.env.local` file in the root directory:
+
+```env
+# Supabase Configuration
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+
+# Plaid Configuration
+VITE_PLAID_CLIENT_ID=your_plaid_client_id
+VITE_PLAID_SECRET=your_plaid_secret
+VITE_PLAID_ENV=sandbox
+
+# SendGrid Configuration
+VITE_SENDGRID_API_KEY=your_sendgrid_api_key
+VITE_SENDGRID_FROM_EMAIL=noreply@yourdomain.com
+
+# Analytics (Optional)
+VITE_ANALYTICS_ENABLED=true
+```
+
+### Vercel Environment Variables
+
+Set these in your Vercel project dashboard:
+
+1. **Go to Project Settings → Environment Variables**
+2. **Add each variable** from `.env.local`
+3. **Set environment** to "Production" and "Preview"
+
+## 🗄️ Database Setup
+
+### 1. Create Supabase Project
+1. **Go to [Supabase Dashboard](https://supabase.com/dashboard)**
+2. **Create New Project**
+3. **Note your project URL and anon key**
+
+### 2. Run Database Migrations
 ```bash
-npm i supabase --save-dev
+# Install Supabase CLI
+npm install -g supabase
+
+# Login to Supabase
+supabase login
+
+# Link your project
+supabase link --project-ref your_project_ref
+
+# Run migrations
+supabase db push
 ```
 
-To install the beta release channel:
-
+### 3. Deploy Edge Functions
 ```bash
-npm i supabase@beta --save-dev
+# Deploy all functions
+supabase functions deploy
+
+# Or deploy specific functions
+supabase functions deploy process-circle-payment
+supabase functions deploy send-payment-reminder
+supabase functions deploy plaid-create-link-token
 ```
 
-When installing with yarn 4, you need to disable experimental fetch with the following nodejs config.
+## 🚀 Local Development
 
-```
-NODE_OPTIONS=--no-experimental-fetch yarn add supabase
-```
-
-> **Note**
-For Bun versions below v1.0.17, you must add `supabase` as a [trusted dependency](https://bun.sh/guides/install/trusted) before running `bun add -D supabase`.
-
-<details>
-  <summary><b>macOS</b></summary>
-
-  Available via [Homebrew](https://brew.sh). To install:
-
-  ```sh
-  brew install supabase/tap/supabase
-  ```
-
-  To install the beta release channel:
-  
-  ```sh
-  brew install supabase/tap/supabase-beta
-  brew link --overwrite supabase-beta
-  ```
-  
-  To upgrade:
-
-  ```sh
-  brew upgrade supabase
-  ```
-</details>
-
-<details>
-  <summary><b>Windows</b></summary>
-
-  Available via [Scoop](https://scoop.sh). To install:
-
-  ```powershell
-  scoop bucket add supabase https://github.com/supabase/scoop-bucket.git
-  scoop install supabase
-  ```
-
-  To upgrade:
-
-  ```powershell
-  scoop update supabase
-  ```
-</details>
-
-<details>
-  <summary><b>Linux</b></summary>
-
-  Available via [Homebrew](https://brew.sh) and Linux packages.
-
-  #### via Homebrew
-
-  To install:
-
-  ```sh
-  brew install supabase/tap/supabase
-  ```
-
-  To upgrade:
-
-  ```sh
-  brew upgrade supabase
-  ```
-
-  #### via Linux packages
-
-  Linux packages are provided in [Releases](https://github.com/supabase/cli/releases). To install, download the `.apk`/`.deb`/`.rpm`/`.pkg.tar.zst` file depending on your package manager and run the respective commands.
-
-  ```sh
-  sudo apk add --allow-untrusted <...>.apk
-  ```
-
-  ```sh
-  sudo dpkg -i <...>.deb
-  ```
-
-  ```sh
-  sudo rpm -i <...>.rpm
-  ```
-
-  ```sh
-  sudo pacman -U <...>.pkg.tar.zst
-  ```
-</details>
-
-<details>
-  <summary><b>Other Platforms</b></summary>
-
-  You can also install the CLI via [go modules](https://go.dev/ref/mod#go-install) without the help of package managers.
-
-  ```sh
-  go install github.com/supabase/cli@latest
-  ```
-
-  Add a symlink to the binary in `$PATH` for easier access:
-
-  ```sh
-  ln -s "$(go env GOPATH)/bin/cli" /usr/bin/supabase
-  ```
-
-  This works on other non-standard Linux distros.
-</details>
-
-<details>
-  <summary><b>Community Maintained Packages</b></summary>
-
-  Available via [pkgx](https://pkgx.sh/). Package script [here](https://github.com/pkgxdev/pantry/blob/main/projects/supabase.com/cli/package.yml).
-  To install in your working directory:
-
-  ```bash
-  pkgx install supabase
-  ```
-
-  Available via [Nixpkgs](https://nixos.org/). Package script [here](https://github.com/NixOS/nixpkgs/blob/master/pkgs/development/tools/supabase-cli/default.nix).
-</details>
-
-### Run the CLI
-
+### 1. Install Dependencies
 ```bash
-supabase bootstrap
+npm install
+# or
+yarn install
+# or
+pnpm install
 ```
 
-Or using npx:
-
+### 2. Start Development Server
 ```bash
-npx supabase bootstrap
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
 ```
 
-The bootstrap command will guide you through the process of setting up a Supabase project using one of the [starter](https://github.com/supabase-community/supabase-samples/blob/main/samples.json) templates.
-
-## Docs
-
-Command & config reference can be found [here](https://supabase.com/docs/reference/cli/about).
-
-## Breaking changes
-
-We follow semantic versioning for changes that directly impact CLI commands, flags, and configurations.
-
-However, due to dependencies on other service images, we cannot guarantee that schema migrations, seed.sql, and generated types will always work for the same CLI major version. If you need such guarantees, we encourage you to pin a specific version of CLI in package.json.
-
-## Developing
-
-To run from source:
-
-```sh
-# Go >= 1.22
-go run . help
+### 3. Build for Production
+```bash
+npm run build
+# or
+yarn build
+# or
+pnpm build
 ```
+
+## 📱 Application Structure
+
+```
+src/
+├── components/          # Reusable UI components
+│   ├── ui/             # Shadcn/ui components
+│   ├── dashboard/      # Dashboard-specific components
+│   └── circle-details/ # Circle management components
+├── pages/              # Application pages
+├── hooks/              # Custom React hooks
+├── lib/                # Utility libraries
+├── types/              # TypeScript type definitions
+└── contexts/           # React contexts (Auth, etc.)
+```
+
+## 🔧 Configuration
+
+### Supabase Configuration
+- **Database**: PostgreSQL with Row Level Security (RLS)
+- **Authentication**: Supabase Auth with email/password
+- **Storage**: File uploads for avatars and documents
+- **Edge Functions**: Payment processing, notifications, analytics
+
+### Plaid Integration
+- **Bank Linking**: Secure account connection via Plaid Link
+- **Payment Processing**: ACH transfers for contributions and payouts
+- **Balance Checking**: Real-time account balance verification
+
+## 🚀 Deployment Checklist
+
+### Before Deploying
+- [ ] **Environment Variables**: Set all required variables in Vercel
+- [ ] **Database**: Run all migrations in Supabase
+- [ ] **Edge Functions**: Deploy all Supabase functions
+- [ ] **API Keys**: Verify Plaid and SendGrid credentials
+- [ ] **Domain**: Configure custom domain if needed
+
+### Post-Deployment
+- [ ] **Test Bank Linking**: Verify Plaid integration works
+- [ ] **Test Payments**: Verify contribution/payout processing
+- [ ] **Test Emails**: Verify SendGrid notifications work
+- [ ] **Performance**: Check Core Web Vitals
+- [ ] **Security**: Verify environment variables are not exposed
+
+## 🔒 Security Considerations
+
+- **Environment Variables**: Never commit `.env` files
+- **API Keys**: Use Vercel's environment variable system
+- **CORS**: Configured for production domains
+- **RLS**: Database-level security policies enabled
+- **Authentication**: Supabase Auth with proper session management
+
+## 📊 Monitoring & Analytics
+
+- **Vercel Analytics**: Built-in performance monitoring
+- **Error Tracking**: Comprehensive error logging
+- **User Analytics**: Event tracking for user behavior
+- **Performance**: Core Web Vitals monitoring
+
+## 🆘 Troubleshooting
+
+### Common Issues
+
+1. **Environment Variables Not Loading**
+   - Verify variables are set in Vercel dashboard
+   - Check variable names match exactly
+   - Ensure variables are set for correct environment
+
+2. **Database Connection Errors**
+   - Verify Supabase project URL and keys
+   - Check if database is active
+   - Verify RLS policies are configured
+
+3. **Plaid Integration Issues**
+   - Check Plaid credentials
+   - Verify Plaid environment (sandbox/production)
+   - Check Plaid account status
+
+4. **Build Failures**
+   - Check Node.js version (18+ required)
+   - Verify all dependencies are installed
+   - Check TypeScript compilation errors
+
+### Getting Help
+
+- **Documentation**: Check Supabase and Plaid docs
+- **Issues**: Create GitHub issue with detailed error
+- **Community**: Join Supabase Discord for support
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
+
+## 📞 Support
+
+For deployment support or questions:
+- **Email**: support@yourdomain.com
+- **Documentation**: [Project Wiki](https://github.com/yourusername/miturn/wiki)
+- **Issues**: [GitHub Issues](https://github.com/yourusername/miturn/issues)
+
+---
+
+**Built with ❤️ using React, Supabase, and Vercel**
