@@ -258,6 +258,53 @@ export const useSoloSavingsGoals = () => {
       throw error;
     }
   };
+
+  // Delete a savings goal
+  const deleteGoal = async (goalId: string) => {
+    if (!user) {
+      toast.error('You must be logged in to delete a goal');
+      return false;
+    }
+    
+    try {
+      // First, get the goal to check if user owns it
+      const { data: goal, error: goalError } = await supabase
+        .from('solo_savings_goals')
+        .select('*')
+        .eq('id', goalId)
+        .eq('user_id', user.id)
+        .single();
+        
+      if (goalError || !goal) {
+        toast.error('Goal not found or you do not have permission to delete it');
+        return false;
+      }
+      
+      // Delete the goal
+      const { error } = await supabase
+        .from('solo_savings_goals')
+        .delete()
+        .eq('id', goalId)
+        .eq('user_id', user.id);
+        
+      if (error) throw error;
+      
+      // Track event
+      trackEvent('solo_goal_deleted', {
+        goal_id: goalId,
+        goal_name: goal.name,
+        target_amount: goal.target_amount
+      });
+      
+      toast.success(`Goal "${goal.name}" deleted successfully`);
+      queryClient.invalidateQueries({ queryKey: ['soloSavingsGoals'] });
+      return true;
+    } catch (error) {
+      console.error('Error deleting goal:', error);
+      toast.error('Failed to delete goal');
+      return false;
+    }
+  };
   
   return {
     goals,
@@ -271,6 +318,7 @@ export const useSoloSavingsGoals = () => {
     updateGoal,
     fetchTodayAllocation,
     processGoalManually,
-    addManualDeposit
+    addManualDeposit,
+    deleteGoal
   };
 };
