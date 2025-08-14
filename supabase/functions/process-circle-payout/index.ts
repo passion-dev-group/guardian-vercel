@@ -16,11 +16,11 @@ serve(async (req) => {
 
   try {
     // Get the request body
-    const { 
-      circle_id, 
+    const {
+      circle_id,
       member_id,
       admin_user_id,
-      payout_amount 
+      payout_amount
     } = await req.json()
 
     if (!circle_id || !member_id || !admin_user_id || !payout_amount) {
@@ -138,6 +138,8 @@ serve(async (req) => {
       )
     }
 
+
+
     // Create the payout transaction record
     const { data: payoutTransaction, error: transactionError } = await supabase
       .from('circle_transactions')
@@ -189,17 +191,25 @@ serve(async (req) => {
         phone_number: memberProfile.phone || '+15551234567',
         email_address: memberProfile.email || 'user@example.com',
         address: {
-          street: memberProfile.address?.street || '123 Main St',
-          city: memberProfile.address?.city || 'City',
-          state: memberProfile.address?.state || 'State',
-          zip: memberProfile.address?.zip || '12345',
-          country: memberProfile.address?.country || 'US',
+          street: memberProfile.address_street || undefined,
+          city: memberProfile.address_city || undefined,
+          region: memberProfile.address_state || undefined, // Plaid expects 'region' not 'state'
+          postal_code: memberProfile.address_zip || undefined, // Plaid expects 'postal_code' not 'zip'
+          country: memberProfile.address_country || 'US',
         },
       },
-      device: {
-        user_agent: 'Savings Circle App/1.0',
-        ip_address: '127.0.0.1', // In production, get from request headers
-      },
+    }
+    if (!authorizationRequest.user.address.street) {
+      delete authorizationRequest.user.address.street;
+    }
+    if (!authorizationRequest.user.address.city) {
+      delete authorizationRequest.user.address.city;
+    }
+    if (!authorizationRequest.user.address.region) {
+      delete authorizationRequest.user.address.region;
+    }
+    if (!authorizationRequest.user.address.postal_code) {
+      delete authorizationRequest.user.address.postal_code;
     }
 
     console.log('Creating transfer authorization for payout:', authorizationRequest)
@@ -213,64 +223,64 @@ serve(async (req) => {
       const authResponse = await plaidClient.transferAuthorizationCreate(authorizationRequest)
       authorization = authResponse.data.authorization
 
-    console.log('Transfer authorization created:', authorization)
+      console.log('Transfer authorization created:', authorization)
 
-    // Check if authorization was approved
-    if (authorization.decision !== 'approved') {
-      console.error('Transfer authorization denied:', authorization.decision_rationale)
+      // Check if authorization was approved
+      if (authorization.decision !== 'approved') {
+        console.error('Transfer authorization denied:', authorization.decision_rationale)
+        await supabase
+          .from('circle_transactions')
+          .update({ status: 'failed' })
+          .eq('id', payoutTransaction.id)
+
+        return new Response(
+          JSON.stringify({
+            success: false,
+            transaction_id: payoutTransaction.id,
+            error: 'Transfer authorization denied',
+            decision: authorization.decision,
+            decision_rationale: authorization.decision_rationale,
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        )
+      }
+
+      let transferDescription = `Payout from ${circle.name}`.substring(0, 15);
+      if (!transferDescription.trim()) {
+        transferDescription = 'Circle Payout'; // Fallback if circle name is empty
+      }
+
+      // Create the actual transfer
+      const transferRequest = {
+        access_token: linkedAccount.plaid_access_token,
+        account_id: linkedAccount.plaid_account_id,
+        authorization_id: authorization.id,
+        amount: payout_amount.toFixed(2),
+        description: transferDescription,
+      }
+
+      console.log('Creating transfer for payout:', transferRequest)
+
+      const transferResponse = await plaidClient.transferCreate(transferRequest)
+      const transfer = transferResponse.data.transfer
+
+      console.log('Transfer created successfully:', transfer)
+
+      // Update transaction with transfer details
       await supabase
         .from('circle_transactions')
-        .update({ status: 'failed' })
+        .update({
+          status: 'completed',
+          plaid_transfer_id: transfer.id,
+          plaid_authorization_id: authorization.id,
+        })
         .eq('id', payoutTransaction.id)
 
-      return new Response(
-        JSON.stringify({
-          success: false,
-          transaction_id: payoutTransaction.id,
-          error: 'Transfer authorization denied',
-          decision: authorization.decision,
-          decision_rationale: authorization.decision_rationale,
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-      )
-    }
-
-    // Create the actual transfer
-    const transferRequest = {
-      access_token: linkedAccount.plaid_access_token,
-      account_id: linkedAccount.plaid_account_id,
-      authorization_id: authorization.id,
-      type: 'credit' as const,
-      network: 'ach' as const,
-      amount: payout_amount.toFixed(2),
-      description: `Payout from ${circle.name} savings circle`,
-      ach_class: 'ppd' as const,
-      user: authorizationRequest.user,
-      device: authorizationRequest.device,
-    }
-
-    console.log('Creating transfer for payout:', transferRequest)
-
-    const transferResponse = await plaidClient.transferCreate(transferRequest)
-    const transfer = transferResponse.data.transfer
-
-    console.log('Transfer created successfully:', transfer)
-
-    // Update transaction with transfer details
-    await supabase
-      .from('circle_transactions')
-      .update({
-        status: 'completed',
-        plaid_transfer_id: transfer.id,
-        plaid_authorization_id: authorization.id,
-      })
-      .eq('id', payoutTransaction.id)
-
-    payoutSuccess = true
+      payoutSuccess = true
 
     } catch (plaidError) {
       console.error('Plaid transfer error:', plaidError)
-      
+
       // Update transaction status to failed
       await supabase
         .from('circle_transactions')
@@ -287,10 +297,10 @@ serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       )
     }
-    
+
     if (payoutSuccess) {
       console.log('Processing successful payout for member:', member.user_id, 'amount:', payout_amount)
-      
+
       // Update transaction status to completed
       const { error: updateError } = await supabase
         .from('circle_transactions')
@@ -330,7 +340,7 @@ serve(async (req) => {
 
       // Update member's payout position (cycle back to 1 if at max)
       const newPosition = nextPosition > maxPosition ? 1 : nextPosition
-      
+
       const { error: memberUpdateError } = await supabase
         .from('circle_members')
         .update({

@@ -5,16 +5,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
 import { useNotificationPreferences } from "@/hooks/useNotificationPreferences"; 
 import { useAccountDeletion } from "@/hooks/useAccountDeletion";
+
 import PageLayout from "@/components/PageLayout";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+
 import {
   Form,
   FormControl,
@@ -43,12 +37,12 @@ import { User, LockIcon, BellIcon, LogOut, Trash2, Edit, Wallet } from "lucide-r
 import { supabase } from "@/lib/supabase";
 import SavingsSettings from "@/components/savings/SavingsSettings";
 import NotificationPreferencesForm from "@/components/account/NotificationPreferencesForm";
+import SoloSavingsGoalsSection from "@/components/savings/SoloSavingsGoalsSection";
 
 const AccountSettings = () => {
   const { user, signOut } = useAuth();
   const { profile } = useProfile();
   const navigate = useNavigate();
-  
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -301,6 +295,9 @@ const AccountSettings = () => {
               </div>
             </div>
           </section>
+
+                    {/* Solo Savings Goals */}
+          <SoloSavingsGoalsSection />
           
           {/* Notification Preferences */}
           <section aria-labelledby="notifications-heading" className="bg-card rounded-lg shadow">
@@ -394,6 +391,8 @@ const AccountSettings = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      
     </PageLayout>
   );
 };

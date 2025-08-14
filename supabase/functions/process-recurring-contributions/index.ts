@@ -129,7 +129,7 @@ serve(async (req) => {
           // Create transfer authorization
           const authorizationRequest = {
             access_token: linkedAccount.plaid_access_token,
-            account_id: linkedAccount.account_id,
+            account_id: linkedAccount.plaid_account_id,
             type: 'debit' as const,
             network: 'ach' as const,
             amount: contribution.amount.toFixed(2),
@@ -175,7 +175,7 @@ serve(async (req) => {
           // Create the actual transfer
           const transferRequest = {
             access_token: linkedAccount.plaid_access_token,
-            account_id: linkedAccount.account_id,
+            account_id: linkedAccount.plaid_account_id,
             authorization_id: authorization.id,
             type: 'debit' as const,
             network: 'ach' as const,

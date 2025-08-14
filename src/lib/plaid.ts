@@ -136,6 +136,7 @@ class PlaidService {
             plaid_access_token: accountData.plaid_access_token,
             institution_name: accountData.institution_name,
             account_id: accountData.account_id,
+            plaid_account_id: accountData.account_id,
             account_name: accountData.account_name,
             account_type: accountData.account_type,
             account_subtype: accountData.account_subtype,

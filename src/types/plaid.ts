@@ -65,6 +65,7 @@ export interface LinkedBankAccount {
   plaid_access_token: string;
   institution_name: string;
   account_id: string;
+  plaid_account_id?: string;
   account_name: string;
   account_type: string;
   account_subtype: string;

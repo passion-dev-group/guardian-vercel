@@ -76,6 +76,11 @@ export interface Database {
           transaction_date: string
           created_at: string
           description: string | null
+          plaid_transfer_id: string | null
+          plaid_authorization_id: string | null
+          processed_at: string | null
+          updated_at: string | null
+          metadata: any | null
         }
         Insert: {
           id?: string
@@ -87,6 +92,11 @@ export interface Database {
           transaction_date?: string
           created_at?: string
           description?: string | null
+          plaid_transfer_id?: string | null
+          plaid_authorization_id?: string | null
+          processed_at?: string | null
+          updated_at?: string | null
+          metadata?: any | null
         }
         Update: {
           id?: string
@@ -98,6 +108,11 @@ export interface Database {
           transaction_date?: string
           created_at?: string
           description?: string | null
+          plaid_transfer_id?: string | null
+          plaid_authorization_id?: string | null
+          processed_at?: string | null
+          updated_at?: string | null
+          metadata?: any | null
         }
       }
       profiles: {
