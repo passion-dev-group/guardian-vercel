@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useCirclePayouts } from "@/hooks/useCirclePayouts";
 import { useAuth } from "@/contexts/AuthContext";
 import { plaidService } from "@/lib/plaid";
@@ -17,7 +18,8 @@ import {
   CheckCircle, 
   AlertCircle, 
   Clock,
-  TrendingUp
+  TrendingUp,
+  AlertTriangle
 } from "lucide-react";
 
 interface PayoutCardProps {
@@ -34,6 +36,18 @@ export function PayoutCard({ circleId, circleName, isAdmin }: PayoutCardProps) {
 
   const handleProcessPayout = async () => {
     if (!user || !payoutInfo.nextPayoutMember) return;
+
+    // Check if funds are actually available for payout
+    if (payoutInfo.availablePool <= 0) {
+      toast({
+        title: "No Funds Available",
+        description: payoutInfo.pendingContributions > 0 
+          ? `${payoutInfo.pendingContributions} contributions are still processing. Please wait for funds to become available.`
+          : "No funds are currently available for payout.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsProcessingPayout(true);
 
@@ -131,16 +145,28 @@ export function PayoutCard({ circleId, circleName, isAdmin }: PayoutCardProps) {
             </div>
           </div>
           
-          <div className="bg-primary/10 rounded-lg p-3">
+          <div className={`rounded-lg p-3 ${payoutInfo.availablePool > 0 ? 'bg-primary/10' : 'bg-orange/10'}`}>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <DollarSign className="h-4 w-4" />
               <span>Available</span>
             </div>
-            <div className="text-lg font-semibold mt-1 text-primary">
+            <div className={`text-lg font-semibold mt-1 ${payoutInfo.availablePool > 0 ? 'text-primary' : 'text-orange-600'}`}>
               {formatCurrency(payoutInfo.availablePool)}
             </div>
           </div>
         </div>
+
+        {/* Pending Contributions Alert */}
+        {payoutInfo.pendingContributions > 0 && (
+          <Alert>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Contributions Processing</AlertTitle>
+            <AlertDescription>
+              {payoutInfo.pendingContributions} contribution{payoutInfo.pendingContributions > 1 ? 's are' : ' is'} still processing. 
+              Funds will become available for payout once confirmed by the bank (typically 1-3 business days).
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Next Payout Member */}
         {payoutInfo.nextPayoutMember ? (
@@ -177,13 +203,20 @@ export function PayoutCard({ circleId, circleName, isAdmin }: PayoutCardProps) {
             </div>
 
             {isAdmin && (
-              <Button 
-                className="w-full mt-3" 
-                onClick={handleProcessPayout}
-                disabled={isProcessingPayout || payoutInfo.availablePool <= 0}
-              >
-                {isProcessingPayout ? "Processing..." : `Process Payout (${formatCurrency(payoutInfo.availablePool)})`}
-              </Button>
+              <div className="mt-3">
+                <Button 
+                  className="w-full" 
+                  onClick={handleProcessPayout}
+                  disabled={isProcessingPayout || payoutInfo.availablePool <= 0}
+                >
+                  {isProcessingPayout ? "Processing..." : `Process Payout (${formatCurrency(payoutInfo.availablePool)})`}
+                </Button>
+                {payoutInfo.availablePool <= 0 && payoutInfo.pendingContributions > 0 && (
+                  <p className="text-sm text-muted-foreground mt-1 text-center">
+                    Waiting for {payoutInfo.pendingContributions} contribution{payoutInfo.pendingContributions > 1 ? 's' : ''} to clear
+                  </p>
+                )}
+              </div>
             )}
           </div>
         ) : (

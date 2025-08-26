@@ -6,7 +6,7 @@ export interface Contribution {
   id: string;
   amount: number;
   type: 'contribution' | 'payout';
-  status: 'pending' | 'completed' | 'failed';
+  status: 'pending' | 'processing' | 'completed' | 'failed';
   transaction_date: string;
   description: string | null;
   user_id: string;

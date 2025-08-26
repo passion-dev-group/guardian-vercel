@@ -5,6 +5,8 @@ import { useAuth } from "@/contexts/AuthContext";
 export interface PayoutInfo {
   totalPool: number;
   availablePool: number;
+  pendingContributions: number;
+  totalContributions: number;
   nextPayoutMember: {
     id: string;
     user_id: string;
@@ -32,6 +34,8 @@ export const useCirclePayouts = (circleId: string | undefined) => {
   const [payoutInfo, setPayoutInfo] = useState<PayoutInfo>({
     totalPool: 0,
     availablePool: 0,
+    pendingContributions: 0,
+    totalContributions: 0,
     nextPayoutMember: null,
     payoutHistory: [],
   });
@@ -52,7 +56,7 @@ export const useCirclePayouts = (circleId: string | undefined) => {
         // Get all completed contributions to calculate total pool
         const { data: contributions, error: contributionsError } = await supabase
           .from('circle_transactions')
-          .select('amount')
+          .select('amount, status, metadata')
           .eq('circle_id', circleId)
           .eq('type', 'contribution')
           .eq('status', 'completed');
@@ -61,7 +65,17 @@ export const useCirclePayouts = (circleId: string | undefined) => {
           throw contributionsError;
         }
 
+        // Filter contributions to only include those with funds actually available
+        // Funds are available when Plaid has confirmed the transfer as 'posted'
+        const availableContributions = contributions?.filter(tx => {
+          // Check if this contribution has been confirmed as posted by Plaid webhook
+          return tx.metadata && 
+                 tx.metadata.event_type === 'posted' && 
+                 tx.status === 'completed'
+        }) || [];
+
         const totalPool = contributions?.reduce((sum, tx) => sum + tx.amount, 0) || 0;
+        const totalAvailableContributions = availableContributions.reduce((sum, tx) => sum + tx.amount, 0);
 
         // Get all completed payouts to calculate available pool
         const { data: payouts, error: payoutsError } = await supabase
@@ -76,7 +90,7 @@ export const useCirclePayouts = (circleId: string | undefined) => {
         }
 
         const totalPaidOut = payouts?.reduce((sum, tx) => sum + tx.amount, 0) || 0;
-        const availablePool = totalPool - totalPaidOut;
+        const availablePool = totalAvailableContributions - totalPaidOut;
 
         // Get next payout member (lowest payout position)
         const { data: nextMember, error: memberError } = await supabase
@@ -147,9 +161,13 @@ export const useCirclePayouts = (circleId: string | undefined) => {
           })
         );
 
+        const pendingContributions = (contributions?.length || 0) - availableContributions.length;
+
         setPayoutInfo({
           totalPool,
           availablePool,
+          pendingContributions,
+          totalContributions: contributions?.length || 0,
           nextPayoutMember: nextMemberWithProfile,
           payoutHistory: payoutHistoryWithProfiles,
         });

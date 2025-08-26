@@ -8,11 +8,91 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
 }
 
+// Helper function to handle errors and update transaction status
+async function handleError(
+  supabase: any,
+  transactionId: string | null,
+  errorMessage: string,
+  statusCode: number = 500,
+  logError?: any
+) {
+  if (logError) {
+    console.error(errorMessage, logError)
+  } else {
+    console.error(errorMessage)
+  }
+
+  // Update transaction status to failed if we have a transaction ID
+  if (transactionId && supabase) {
+    try {
+      const { error: updateError } = await supabase
+        .from('circle_transactions')
+        .update({ status: 'failed' })
+        .eq('id', transactionId)
+
+      if (updateError) {
+        console.error('Error updating transaction to failed status:', updateError)
+      } else {
+        console.log(`Updated transaction ${transactionId} to failed status`)
+      }
+    } catch (updateError) {
+      console.error('Exception updating transaction to failed status:', updateError)
+    }
+  }
+
+  return new Response(
+    JSON.stringify({
+      error: errorMessage,
+      transaction_id: transactionId || undefined
+    }),
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: statusCode }
+  )
+}
+
+// Helper function to create optimized transfer description
+function createTransferDescription(circleName: string): string {
+  if (!circleName || !circleName.trim()) {
+    return 'Circle Contrib'
+  }
+
+  const prefix = 'Circle: '
+  const maxLength = 15
+  const availableLength = maxLength - prefix.length
+
+  if (circleName.length <= availableLength) {
+    return `${prefix}${circleName}`
+  }
+
+  return `${prefix}${circleName.substring(0, availableLength)}`
+}
+
+// Helper function to create Plaid client
+function createPlaidClient() {
+  const plaidClientId = Deno.env.get('PLAID_CLIENT_ID')!
+  const plaidSecret = Deno.env.get('PLAID_SECRET')!
+  const plaidEnv = Deno.env.get('PLAID_ENV') || 'sandbox'
+
+  const configuration = new Configuration({
+    basePath: plaidEnv === "sandbox" ? PlaidEnvironments.sandbox : PlaidEnvironments.production,
+    baseOptions: {
+      headers: {
+        'PLAID-CLIENT-ID': plaidClientId,
+        'PLAID-SECRET': plaidSecret,
+      },
+    },
+  })
+
+  return new PlaidApi(configuration)
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
+
+  let transactionId: string | null = null;
+  let supabase: any = null;
 
   try {
     // Get the request body
@@ -25,6 +105,11 @@ serve(async (req) => {
       description
     } = await req.json()
 
+    // Initialize Supabase client early so we can use it in error handling
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    supabase = createClient(supabaseUrl, supabaseServiceKey)
+
     if (!user_id || !circle_id || !amount || !account_id || !access_token) {
       return new Response(
         JSON.stringify({ error: 'Missing required fields: user_id, circle_id, amount, account_id, access_token' }),
@@ -32,48 +117,50 @@ serve(async (req) => {
       )
     }
 
-    // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
 
     // Initialize Plaid client
-    const plaidClientId = Deno.env.get('PLAID_CLIENT_ID')!
-    const plaidSecret = Deno.env.get('PLAID_SECRET')!
-    const plaidEnv = Deno.env.get('PLAID_ENV') || 'sandbox'
+    const plaidClient = createPlaidClient()
 
-    const configuration = new Configuration({
-      basePath: plaidEnv === "sandbox" ? PlaidEnvironments.sandbox : PlaidEnvironments.production,
-      baseOptions: {
-        headers: {
-          'PLAID-CLIENT-ID': plaidClientId,
-          'PLAID-SECRET': plaidSecret,
-        },
-      },
-    })
-    const plaidClient = new PlaidApi(configuration)
+    // Fetch all required data in parallel to reduce database round trips
+    const [
+      { data: membership, error: membershipError },
+      { data: circle, error: circleError },
+      { data: linkedAccount, error: accountError },
+      { data: userProfile, error: profileError }
+    ] = await Promise.all([
+      supabase
+        .from('circle_members')
+        .select('*')
+        .eq('circle_id', circle_id)
+        .eq('user_id', user_id)
+        .single(),
+      supabase
+        .from('circles')
+        .select('*')
+        .eq('id', circle_id)
+        .single(),
+      supabase
+        .from('linked_bank_accounts')
+        .select('*')
+        .eq('user_id', user_id)
+        .eq('account_id', account_id)
+        .eq('is_active', true)
+        .single(),
+      supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user_id)
+        .single()
+    ])
 
-    // Verify the user is a member of the circle
-    const { data: membership, error: membershipError } = await supabase
-      .from('circle_members')
-      .select('*')
-      .eq('circle_id', circle_id)
-      .eq('user_id', user_id)
-      .single()
-
+    // Validate all fetched data
     if (membershipError || !membership) {
       return new Response(
         JSON.stringify({ error: 'User is not a member of this circle' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
       )
     }
-
-    // Get circle details
-    const { data: circle, error: circleError } = await supabase
-      .from('circles')
-      .select('*')
-      .eq('id', circle_id)
-      .single()
 
     if (circleError || !circle) {
       return new Response(
@@ -82,19 +169,18 @@ serve(async (req) => {
       )
     }
 
-    // Verify the account belongs to the user
-    const { data: linkedAccount, error: accountError } = await supabase
-      .from('linked_bank_accounts')
-      .select('*')
-      .eq('user_id', user_id)
-      .eq('account_id', account_id)
-      .eq('is_active', true)
-      .single()
-
     if (accountError || !linkedAccount) {
       return new Response(
         JSON.stringify({ error: 'Bank account not found or not linked to user' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
+      )
+    }
+
+    if (profileError || !userProfile) {
+      console.error('Error fetching user profile:', profileError)
+      return new Response(
+        JSON.stringify({ error: 'Failed to fetch user profile for transfer' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
       )
     }
 
@@ -139,7 +225,7 @@ serve(async (req) => {
       })
       .select()
       .single()
-
+    console.log('Transaction created:', transaction)
     if (transactionError) {
       console.error('Error creating transaction record:', transactionError)
       return new Response(
@@ -148,22 +234,10 @@ serve(async (req) => {
       )
     }
 
-    // Get user's profile information for transfer
-    const { data: userProfile, error: profileError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user_id)
-      .single()
+    // Store transaction ID for error handling
+    transactionId = transaction.id
 
-    if (profileError || !userProfile) {
-      console.error('Error fetching user profile:', profileError)
-      return new Response(
-        JSON.stringify({ error: 'Failed to fetch user profile for transfer' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
-      )
-    }
-
-    // Get user's email from auth.users if not in profile
+    // Get user's email from auth.users if not in profile and validate all required data
     let userEmail = userProfile.email;
     if (!userEmail) {
       try {
@@ -176,33 +250,23 @@ serve(async (req) => {
       }
     }
 
-    // Validate required profile data
-    if (!userProfile.display_name) {
-      console.error('User profile missing display_name:', userProfile);
-      return new Response(
-        JSON.stringify({ error: 'User profile is incomplete. Please complete your profile before making payments.' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+    // Validate all required profile data at once
+    const validationErrors: string[] = [];
+    if (!userProfile.display_name) validationErrors.push('display name');
+    if (!userEmail) validationErrors.push('email address');
+    if (!userProfile.phone) validationErrors.push('phone number');
+
+    if (validationErrors.length > 0) {
+      return await handleError(
+        supabase,
+        transactionId,
+        `Profile incomplete. Please add: ${validationErrors.join(', ')}`,
+        400,
+        `User profile validation failed: missing ${validationErrors.join(', ')}`
       )
     }
 
-    if (!userEmail) {
-      console.error('User has no email address:', userProfile);
-      return new Response(
-        JSON.stringify({ error: 'User email address is required for payment processing.' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-      )
-    }
-
-    // Get phone number from user's profile (primary source for payment processing)
-    let userPhoneNumber = userProfile.phone;
-
-    if (!userPhoneNumber) {
-      console.error('User profile missing phone number');
-      return new Response(
-        JSON.stringify({ error: 'Phone number is required for payment processing. Please update your profile with a phone number.' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-      )
-    }
+    const userPhoneNumber = userProfile.phone;
 
     // Create transfer authorization
     const authorizationRequest = {
@@ -264,10 +328,14 @@ serve(async (req) => {
       // Check if authorization was approved
       if (authorization.decision !== 'approved') {
         console.error('Transfer authorization denied:', authorization.decision_rationale)
-        await supabase
+        const { error: failUpdateError } = await supabase
           .from('circle_transactions')
           .update({ status: 'failed' })
           .eq('id', transaction.id)
+
+        if (failUpdateError) {
+          console.error('Error updating transaction to failed status (authorization denied):', failUpdateError)
+        }
 
         return new Response(
           JSON.stringify({
@@ -282,18 +350,12 @@ serve(async (req) => {
       }
 
       // Create the actual transfer using the correct Plaid Transfer API
-      // Ensure description meets Plaid's requirements: non-empty, max 15 characters
-      let transferDescription = `Circle: ${circle.name}`.substring(0, 15);
-      if (!transferDescription.trim()) {
-        transferDescription = 'Circle Contrib'; // Fallback if circle name is empty
-      }
-      
       const transferRequest = {
         access_token: access_token,
         account_id: account_id,
         authorization_id: authorization.id,
         amount: amount.toFixed(2),
-        description: transferDescription,
+        description: createTransferDescription(circle.name),
       }
 
       console.log('Creating transfer for contribution:', transferRequest)
@@ -303,15 +365,23 @@ serve(async (req) => {
 
       console.log('Transfer created successfully:', transfer)
 
-      // Update transaction with transfer details
-      await supabase
+      // Update transaction with transfer details - set as processing, not completed
+      // The transaction will be marked as completed when we receive the 'posted' webhook from Plaid
+      const { error: updateError } = await supabase
         .from('circle_transactions')
         .update({
-          status: 'completed',
+          status: 'processing',
           plaid_transfer_id: transfer.id,
           plaid_authorization_id: authorization.id,
         })
         .eq('id', transaction.id)
+
+      if (updateError) {
+        console.error('Error updating transaction to processing status:', updateError)
+        throw new Error(`Failed to update transaction status: ${updateError.message}`)
+      }
+
+      console.log(`Updated transaction ${transaction.id} to processing status`)
 
       paymentSuccess = true
 
@@ -319,10 +389,14 @@ serve(async (req) => {
       console.error('Plaid transfer error:', plaidError)
 
       // Update transaction status to failed
-      await supabase
+      const { error: plaidFailUpdateError } = await supabase
         .from('circle_transactions')
         .update({ status: 'failed' })
         .eq('id', transaction.id)
+
+      if (plaidFailUpdateError) {
+        console.error('Error updating transaction to failed status (Plaid error):', plaidFailUpdateError)
+      }
 
       return new Response(
         JSON.stringify({
@@ -340,8 +414,9 @@ serve(async (req) => {
         JSON.stringify({
           success: true,
           transaction_id: transaction.id,
-          message: 'Payment processed successfully',
+          message: 'Payment initiated successfully - waiting for bank clearing',
           amount: amount,
+          status: 'processing',
           plaid_transfer_id: transfer.id,
           plaid_authorization_id: authorization.id,
         }),
@@ -350,10 +425,12 @@ serve(async (req) => {
     }
 
   } catch (error) {
-    console.error('Error processing circle payment:', error)
-    return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+    return await handleError(
+      supabase,
+      transactionId,
+      'Internal server error',
+      500,
+      error
     )
   }
 }) 

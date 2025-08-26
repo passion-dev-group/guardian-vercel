@@ -18,6 +18,7 @@ import { PayoutCard } from "@/components/circle-details/PayoutCard";
 import RotationManager from "@/components/circle-details/RotationManager";
 import CircleStatsWidget from "@/components/circle-details/CircleStatsWidget";
 import CircleAnalyticsWidget from "@/components/circle-details/CircleAnalyticsWidget";
+import StartCircleButton from "@/components/circle-details/StartCircleButton";
 
 const CircleDetails = () => {
   const { circleId } = useParams<{ circleId: string }>();
@@ -142,7 +143,18 @@ const CircleDetails = () => {
           </div>
           
           <div className="space-y-6">
-            <section aria-labelledby="stats-heading">
+            {isAdmin && (
+              <section aria-labelledby="start-circle-heading">
+                <h2 id="start-circle-heading" className="text-xl font-semibold mb-4">Circle Management</h2>
+                <StartCircleButton 
+                  circleId={circleId!}
+                  circleName={circle.name}
+                  isAdmin={isAdmin}
+                />
+              </section>
+            )}
+            
+            {/* <section aria-labelledby="stats-heading">
               <h2 id="stats-heading" className="text-xl font-semibold mb-4">Circle Statistics</h2>
               <CircleStatsWidget circleId={circleId!} />
             </section>
@@ -150,7 +162,7 @@ const CircleDetails = () => {
             <section aria-labelledby="analytics-heading">
               <h2 id="analytics-heading" className="text-xl font-semibold mb-4">Circle Analytics</h2>
               <CircleAnalyticsWidget circleId={circleId!} />
-            </section>
+            </section> */}
             
             {/* <section aria-labelledby="contribution-heading">
               <h2 id="contribution-heading" className="text-xl font-semibold mb-4">Real Payment Processing</h2>

@@ -20,12 +20,31 @@ const formSchema = z.object({
   frequency: z.enum(["biweekly", "monthly", "quarterly", "annual"], {
     required_error: "Please select a contribution frequency.",
   }),
+  startDate: z.string().optional(),
+  minMembers: z.coerce.number().min(2, {
+    message: "Minimum members must be at least 2.",
+  }).max(50, {
+    message: "Minimum members cannot exceed 50.",
+  }).optional(),
+  maxMembers: z.coerce.number().min(2, {
+    message: "Maximum members must be at least 2.",
+  }).max(50, {
+    message: "Maximum members cannot exceed 50.",
+  }).optional(),
   membersEmails: z.array(
     z.string().email({ message: "Please enter a valid email address." })
   ).optional(),
   acceptTerms: z.boolean().refine(val => val === true, {
     message: "You must accept the terms and conditions to create a circle."
   })
+}).refine(data => {
+  if (data.minMembers && data.maxMembers && data.minMembers > data.maxMembers) {
+    return false;
+  }
+  return true;
+}, {
+  message: "Minimum members cannot be greater than maximum members.",
+  path: ["maxMembers"]
 });
 
 export type CircleFormValues = z.infer<typeof formSchema>;
@@ -45,6 +64,9 @@ export const useCircleForm = () => {
       name: "",
       amount: undefined,
       frequency: "monthly",
+      startDate: "",
+      minMembers: 2,
+      maxMembers: 10,
       membersEmails: [],
       acceptTerms: false,
     },
@@ -135,6 +157,10 @@ export const useCircleForm = () => {
           contribution_amount: values.amount,
           frequency: values.frequency,
           created_by: user.id,
+          start_date: values.startDate || null,
+          min_members: values.minMembers || 2,
+          max_members: values.maxMembers || 10,
+          status: 'pending', // Set initial status to pending
         })
         .select('id')
         .single();

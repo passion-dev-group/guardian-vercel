@@ -153,6 +153,75 @@ const CircleForm = ({
           )}
         />
 
+        <FormField
+          control={form.control}
+          name="startDate"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Start Date (Optional)</FormLabel>
+              <FormControl>
+                <Input
+                  type="date"
+                  min={new Date().toISOString().split('T')[0]}
+                  {...field}
+                />
+              </FormControl>
+              <FormDescription>
+                When should the circle begin collecting contributions? Leave empty to start immediately.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="minMembers"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Minimum Members</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    placeholder="2"
+                    min="2"
+                    max="50"
+                    {...field}
+                  />
+                </FormControl>
+                <FormDescription>
+                  Minimum members needed to start the circle.
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="maxMembers"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Maximum Members</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    placeholder="10"
+                    min="2"
+                    max="50"
+                    {...field}
+                  />
+                </FormControl>
+                <FormDescription>
+                  Maximum members allowed in the circle.
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
         <div className="space-y-2">
           <div className="flex justify-between items-center">
             <h3 className="text-lg font-medium">Invite Members</h3>

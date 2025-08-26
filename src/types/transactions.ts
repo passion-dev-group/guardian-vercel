@@ -4,7 +4,7 @@ export interface Transaction {
   user_id: string;
   amount: number;
   type: 'contribution' | 'payout';
-  status: 'pending' | 'completed' | 'failed' | 'cancelled';
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
   transaction_date: string;
   created_at: string;
   description: string | null;
@@ -35,7 +35,7 @@ export interface TransactionFilters {
   circleId?: string;
   userId?: string;
   type?: 'contribution' | 'payout';
-  status?: 'pending' | 'completed' | 'failed' | 'cancelled';
+  status?: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
   dateFrom?: string;
   dateTo?: string;
   limit?: number;

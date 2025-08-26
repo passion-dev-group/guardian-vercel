@@ -96,13 +96,14 @@ serve(async (req) => {
       )
     }
 
-    // Calculate total pool amount from all contributions
+    // Calculate total pool amount from all contributions that are actually available (posted/completed)
+    // Only include contributions where funds are confirmed available by Plaid
     const { data: contributions, error: contributionsError } = await supabase
       .from('circle_transactions')
-      .select('amount')
+      .select('amount, status, metadata')
       .eq('circle_id', circle_id)
       .eq('type', 'contribution')
-      .eq('status', 'completed')
+      .eq('status', 'completed') // Only completed contributions
 
     if (contributionsError) {
       return new Response(
@@ -111,12 +112,49 @@ serve(async (req) => {
       )
     }
 
-    const totalPool = contributions?.reduce((sum, tx) => sum + tx.amount, 0) || 0
+    // Filter contributions to only include those with funds actually available
+    // Funds are available when Plaid has confirmed the transfer as 'posted'
+    const availableContributions = contributions?.filter(tx => {
+      // Check if this contribution has been confirmed as posted by Plaid webhook
+      return tx.metadata && 
+             tx.metadata.event_type === 'posted' && 
+             tx.status === 'completed'
+    }) || []
 
-    // Verify payout amount doesn't exceed pool
-    if (payout_amount > totalPool) {
+    const totalAvailablePool = availableContributions.reduce((sum, tx) => sum + tx.amount, 0)
+    const totalPendingPool = (contributions?.length || 0) - availableContributions.length
+
+    console.log(`Pool calculation for circle ${circle_id}:`, {
+      total_contributions: contributions?.length || 0,
+      available_contributions: availableContributions.length,
+      pending_contributions: totalPendingPool,
+      total_available_amount: totalAvailablePool,
+      requested_payout: payout_amount
+    })
+
+    // Verify payout amount doesn't exceed available pool
+    if (payout_amount > totalAvailablePool) {
       return new Response(
-        JSON.stringify({ error: 'Payout amount exceeds available pool' }),
+        JSON.stringify({ 
+          error: 'Payout amount exceeds available funds',
+          available_amount: totalAvailablePool,
+          requested_amount: payout_amount,
+          pending_contributions: totalPendingPool,
+          message: totalPendingPool > 0 
+            ? `${totalPendingPool} contributions are still processing. Please wait for funds to become available.`
+            : 'Insufficient funds available for payout.'
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      )
+    }
+
+    // Additional safety check: Ensure we have sufficient fund availability before proceeding
+    if (availableContributions.length === 0) {
+      return new Response(
+        JSON.stringify({ 
+          error: 'No funds available for payout',
+          message: 'All contributions are still processing. Please wait for funds to become available before requesting a payout.'
+        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       )
     }

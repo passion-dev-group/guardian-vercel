@@ -31,4 +31,7 @@ export interface Circle {
   created_by: string;
   status?: string; // Adding the status field that was missing
   memberCount?: number; // Adding member count for dashboard display
+  start_date?: string; // Date when the circle will begin
+  min_members?: number; // Minimum members required to start
+  max_members?: number; // Maximum members allowed
 }

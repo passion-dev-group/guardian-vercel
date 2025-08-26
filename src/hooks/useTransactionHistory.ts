@@ -79,7 +79,7 @@ export function useTransactionHistory(filters: TransactionFilters = {}) {
         user_id: tx.user_id,
         amount: tx.amount,
         type: tx.type as 'contribution' | 'payout',
-        status: tx.status as 'pending' | 'completed' | 'failed' | 'cancelled',
+        status: tx.status as 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled',
         transaction_date: tx.transaction_date,
         created_at: tx.created_at,
         description: tx.description,

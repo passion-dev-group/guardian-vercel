@@ -8,7 +8,7 @@ import { formatCurrency } from "@/lib/utils";
 interface ActivityItem {
   id: string;
   type: "contribution" | "payout";
-  status: "pending" | "completed" | "failed";
+  status: "pending" | "processing" | "completed" | "failed";
   transaction_date: string;
   amount: number;
   description: string | null;

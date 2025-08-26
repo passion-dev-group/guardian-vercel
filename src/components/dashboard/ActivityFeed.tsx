@@ -8,7 +8,7 @@ import LoadingSpinner from "@/components/LoadingSpinner";
 interface ActivityItem {
   id: string;
   type: "contribution" | "payout"; // Strict union type instead of string
-  status: "pending" | "completed" | "failed"; // Strict union type
+  status: "pending" | "processing" | "completed" | "failed"; // Strict union type
   transaction_date: string;
   amount: number;
   description: string;
@@ -21,7 +21,7 @@ const convertToActivityItem = (item: any): ActivityItem => {
   return {
     id: item.id,
     type: item.type as "contribution" | "payout", // Type assertion
-    status: item.status as "pending" | "completed" | "failed", // Type assertion
+    status: item.status as "pending" | "processing" | "completed" | "failed", // Type assertion
     transaction_date: item.transaction_date,
     amount: item.amount,
     description: item.description,

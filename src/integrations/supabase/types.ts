@@ -7,6 +7,11 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "12.2.3 (519615d)"
+  }
   public: {
     Tables: {
       automated_savings: {
@@ -198,9 +203,14 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          metadata: Json | null
+          plaid_authorization_id: string | null
+          plaid_transfer_id: string | null
+          processed_at: string | null
           status: string
           transaction_date: string
           type: string
+          updated_at: string | null
           user_id: string
         }
         Insert: {
@@ -209,9 +219,14 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          metadata?: Json | null
+          plaid_authorization_id?: string | null
+          plaid_transfer_id?: string | null
+          processed_at?: string | null
           status: string
           transaction_date?: string
           type: string
+          updated_at?: string | null
           user_id: string
         }
         Update: {
@@ -220,9 +235,14 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          metadata?: Json | null
+          plaid_authorization_id?: string | null
+          plaid_transfer_id?: string | null
+          processed_at?: string | null
           status?: string
           transaction_date?: string
           type?: string
+          updated_at?: string | null
           user_id?: string
         }
         Relationships: [
@@ -242,7 +262,10 @@ export type Database = {
           created_by: string
           frequency: string
           id: string
+          max_members: number | null
+          min_members: number | null
           name: string
+          start_date: string | null
           status: string | null
         }
         Insert: {
@@ -251,7 +274,10 @@ export type Database = {
           created_by: string
           frequency: string
           id?: string
+          max_members?: number | null
+          min_members?: number | null
           name: string
+          start_date?: string | null
           status?: string | null
         }
         Update: {
@@ -260,7 +286,10 @@ export type Database = {
           created_by?: string
           frequency?: string
           id?: string
+          max_members?: number | null
+          min_members?: number | null
           name?: string
+          start_date?: string | null
           status?: string | null
         }
         Relationships: []
@@ -353,6 +382,75 @@ export type Database = {
           },
         ]
       }
+      linked_bank_accounts: {
+        Row: {
+          account_id: string
+          account_name: string
+          account_subtype: string
+          account_type: string
+          circle_user_id: string | null
+          circle_wallet_id: string | null
+          created_at: string | null
+          id: string
+          institution_name: string
+          is_active: boolean
+          mask: string
+          phone_number: string | null
+          plaid_access_token: string
+          plaid_account_id: string | null
+          plaid_item_id: string
+          updated_at: string | null
+          user_id: string
+          verification_status: string
+          wallet_type: string | null
+          wallet_verification_status: string | null
+        }
+        Insert: {
+          account_id: string
+          account_name: string
+          account_subtype: string
+          account_type: string
+          circle_user_id?: string | null
+          circle_wallet_id?: string | null
+          created_at?: string | null
+          id?: string
+          institution_name: string
+          is_active?: boolean
+          mask: string
+          phone_number?: string | null
+          plaid_access_token: string
+          plaid_account_id?: string | null
+          plaid_item_id: string
+          updated_at?: string | null
+          user_id: string
+          verification_status?: string
+          wallet_type?: string | null
+          wallet_verification_status?: string | null
+        }
+        Update: {
+          account_id?: string
+          account_name?: string
+          account_subtype?: string
+          account_type?: string
+          circle_user_id?: string | null
+          circle_wallet_id?: string | null
+          created_at?: string | null
+          id?: string
+          institution_name?: string
+          is_active?: boolean
+          mask?: string
+          phone_number?: string | null
+          plaid_access_token?: string
+          plaid_account_id?: string | null
+          plaid_item_id?: string
+          updated_at?: string | null
+          user_id?: string
+          verification_status?: string
+          wallet_type?: string | null
+          wallet_verification_status?: string | null
+        }
+        Relationships: []
+      }
       post_likes: {
         Row: {
           created_at: string
@@ -384,30 +482,101 @@ export type Database = {
       }
       profiles: {
         Row: {
+          address_city: string | null
+          address_country: string | null
+          address_state: string | null
+          address_street: string | null
+          address_zip: string | null
           avatar_url: string | null
+          created_at: string | null
           display_name: string | null
           email: string | null
           id: string
+          mfa_enabled: boolean | null
           phone: string | null
           updated_at: string | null
         }
         Insert: {
+          address_city?: string | null
+          address_country?: string | null
+          address_state?: string | null
+          address_street?: string | null
+          address_zip?: string | null
           avatar_url?: string | null
+          created_at?: string | null
           display_name?: string | null
           email?: string | null
           id: string
+          mfa_enabled?: boolean | null
           phone?: string | null
           updated_at?: string | null
         }
         Update: {
+          address_city?: string | null
+          address_country?: string | null
+          address_state?: string | null
+          address_street?: string | null
+          address_zip?: string | null
           avatar_url?: string | null
+          created_at?: string | null
           display_name?: string | null
           email?: string | null
           id?: string
+          mfa_enabled?: boolean | null
           phone?: string | null
           updated_at?: string | null
         }
         Relationships: []
+      }
+      recurring_contributions: {
+        Row: {
+          amount: number
+          circle_id: string
+          created_at: string | null
+          day_of_month: number | null
+          day_of_week: number | null
+          frequency: string
+          id: string
+          is_active: boolean
+          next_contribution_date: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          circle_id: string
+          created_at?: string | null
+          day_of_month?: number | null
+          day_of_week?: number | null
+          frequency: string
+          id?: string
+          is_active?: boolean
+          next_contribution_date: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          circle_id?: string
+          created_at?: string | null
+          day_of_month?: number | null
+          day_of_week?: number | null
+          frequency?: string
+          id?: string
+          is_active?: boolean
+          next_contribution_date?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recurring_contributions_circle_id_fkey"
+            columns: ["circle_id"]
+            isOneToOne: false
+            referencedRelation: "circles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       savings_goals: {
         Row: {
@@ -647,6 +816,106 @@ export type Database = {
         }
         Relationships: []
       }
+      solo_savings_recurring_contributions: {
+        Row: {
+          amount: number
+          created_at: string | null
+          day_of_month: number | null
+          day_of_week: number | null
+          frequency: string
+          goal_id: string
+          id: string
+          is_active: boolean
+          next_contribution_date: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string | null
+          day_of_month?: number | null
+          day_of_week?: number | null
+          frequency: string
+          goal_id: string
+          id?: string
+          is_active?: boolean
+          next_contribution_date: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          day_of_month?: number | null
+          day_of_week?: number | null
+          frequency?: string
+          goal_id?: string
+          id?: string
+          is_active?: boolean
+          next_contribution_date?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "solo_savings_recurring_contributions_goal_id_fkey"
+            columns: ["goal_id"]
+            isOneToOne: false
+            referencedRelation: "solo_savings_goals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      solo_savings_transactions: {
+        Row: {
+          amount: number
+          created_at: string | null
+          description: string | null
+          goal_id: string
+          id: string
+          metadata: Json | null
+          status: string
+          transaction_date: string
+          type: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string | null
+          description?: string | null
+          goal_id: string
+          id?: string
+          metadata?: Json | null
+          status?: string
+          transaction_date: string
+          type: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          description?: string | null
+          goal_id?: string
+          id?: string
+          metadata?: Json | null
+          status?: string
+          transaction_date?: string
+          type?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "solo_savings_transactions_goal_id_fkey"
+            columns: ["goal_id"]
+            isOneToOne: false
+            referencedRelation: "solo_savings_goals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       transactions: {
         Row: {
           account_id: string
@@ -709,12 +978,34 @@ export type Database = {
           },
         ]
       }
+      user_notification_preferences: {
+        Row: {
+          email_enabled: boolean
+          sms_enabled: boolean
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          email_enabled?: boolean
+          sms_enabled?: boolean
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          email_enabled?: boolean
+          sms_enabled?: boolean
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_notifications: {
         Row: {
           circle_id: string | null
           created_at: string
           enabled: boolean
           id: string
+          scheduled_for: string | null
           type: string
           user_id: string
         }
@@ -723,6 +1014,7 @@ export type Database = {
           created_at?: string
           enabled?: boolean
           id?: string
+          scheduled_for?: string | null
           type: string
           user_id: string
         }
@@ -731,6 +1023,7 @@ export type Database = {
           created_at?: string
           enabled?: boolean
           id?: string
+          scheduled_for?: string | null
           type?: string
           user_id?: string
         }
@@ -740,35 +1033,6 @@ export type Database = {
             columns: ["circle_id"]
             isOneToOne: false
             referencedRelation: "circles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      user_notification_preferences: {
-        Row: {
-          user_id: string
-          email_enabled: boolean
-          sms_enabled: boolean
-          updated_at: string
-        }
-        Insert: {
-          user_id: string
-          email_enabled: boolean
-          sms_enabled: boolean
-          updated_at?: string
-        }
-        Update: {
-          user_id?: string
-          email_enabled?: boolean
-          sms_enabled?: boolean
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "user_notification_preferences_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "auth.users"
             referencedColumns: ["id"]
           },
         ]
@@ -836,6 +1100,9 @@ export type Database = {
           submitted_at: string | null
           updated_at: string | null
           user_id: string
+          veriff_reason: string | null
+          veriff_response: string | null
+          veriff_status: string | null
         }
         Insert: {
           driver_license_url: string
@@ -845,6 +1112,9 @@ export type Database = {
           submitted_at?: string | null
           updated_at?: string | null
           user_id: string
+          veriff_reason?: string | null
+          veriff_response?: string | null
+          veriff_status?: string | null
         }
         Update: {
           driver_license_url?: string
@@ -854,6 +1124,9 @@ export type Database = {
           submitted_at?: string | null
           updated_at?: string | null
           user_id?: string
+          veriff_reason?: string | null
+          veriff_response?: string | null
+          veriff_status?: string | null
         }
         Relationships: []
       }
@@ -864,8 +1137,8 @@ export type Database = {
     Functions: {
       has_role: {
         Args: {
-          _user_id: string
           _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
         }
         Returns: boolean
       }
@@ -873,10 +1146,14 @@ export type Database = {
         Args: { contact_emails: string[]; contact_phones: string[] }
         Returns: {
           email: string
-          phone: string
           matched: boolean
+          phone: string
           user_id: string
         }[]
+      }
+      process_solo_savings_contributions_job: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
       }
     }
     Enums: {
@@ -888,21 +1165,25 @@ export type Database = {
   }
 }
 
-type DefaultSchema = Database[Extract<keyof Database, "public">]
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
-    | { schema: keyof Database },
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof Database
+    schema: keyof DatabaseWithoutInternals
   }
-    ? keyof (Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-        Database[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
     : never = never,
-> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
-  ? (Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-      Database[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R
     }
     ? R
@@ -920,14 +1201,16 @@ export type Tables<
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
-    | { schema: keyof Database },
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof Database
+    schema: keyof DatabaseWithoutInternals
   }
-    ? keyof Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
-  ? Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Insert: infer I
     }
     ? I
@@ -943,14 +1226,16 @@ export type TablesInsert<
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
-    | { schema: keyof Database },
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof Database
+    schema: keyof DatabaseWithoutInternals
   }
-    ? keyof Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
-  ? Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Update: infer U
     }
     ? U
@@ -966,14 +1251,16 @@ export type TablesUpdate<
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
-    | { schema: keyof Database },
+    | { schema: keyof DatabaseWithoutInternals },
   EnumName extends DefaultSchemaEnumNameOrOptions extends {
-    schema: keyof Database
+    schema: keyof DatabaseWithoutInternals
   }
-    ? keyof Database[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
     : never = never,
-> = DefaultSchemaEnumNameOrOptions extends { schema: keyof Database }
-  ? Database[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
     ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
     : never
@@ -981,14 +1268,16 @@ export type Enums<
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
-    | { schema: keyof Database },
+    | { schema: keyof DatabaseWithoutInternals },
   CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
-    schema: keyof Database
+    schema: keyof DatabaseWithoutInternals
   }
-    ? keyof Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
     : never = never,
-> = PublicCompositeTypeNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
     ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never
