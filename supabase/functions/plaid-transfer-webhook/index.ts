@@ -206,6 +206,7 @@ async function processTransferEvent(supabase: any, event: any) {
 
     switch (event_type) {
       case 'posted':
+      case 'settled':
         newStatus = 'completed'
         break
       case 'failed':

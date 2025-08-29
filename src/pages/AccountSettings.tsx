@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/hooks/useProfile";
-import { useNotificationPreferences } from "@/hooks/useNotificationPreferences"; 
+import { useNotificationPreferences } from "@/hooks/useNotificationPreferences";
 import { useAccountDeletion } from "@/hooks/useAccountDeletion";
 
 import PageLayout from "@/components/PageLayout";
@@ -33,11 +33,10 @@ import {
 import { toast } from "sonner";
 import { trackEvent } from "@/lib/analytics";
 import { Separator } from "@/components/ui/separator";
-import { User, LockIcon, BellIcon, LogOut, Trash2, Edit, Wallet } from "lucide-react";
+import { User, LockIcon, BellIcon, LogOut, Trash2, Edit, Wallet, PiggyBank, Target } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import SavingsSettings from "@/components/savings/SavingsSettings";
 import NotificationPreferencesForm from "@/components/account/NotificationPreferencesForm";
-import SoloSavingsGoalsSection from "@/components/savings/SoloSavingsGoalsSection";
 
 const AccountSettings = () => {
   const { user, signOut } = useAuth();
@@ -47,16 +46,16 @@ const AccountSettings = () => {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  
+
   const [mfaEnabled, setMfaEnabled] = useState(false);
   // Remove loadingMfa
-  
+
   const { preferences, isLoading, isSaving, savePreferences } = useNotificationPreferences();
   const { isDeleting, deleteAccount } = useAccountDeletion();
-  
+
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
-  
+
   // Track page view
   useEffect(() => {
     trackEvent('account_settings_viewed');
@@ -78,27 +77,27 @@ const AccountSettings = () => {
     };
     fetchMfaStatus();
   }, [user]);
-  
+
   const handleEditProfile = () => {
     trackEvent('profile_edit_clicked');
     navigate('/profile');
   };
-  
+
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (newPassword !== confirmPassword) {
       toast.error("New passwords don't match");
       return;
     }
-    
+
     try {
-      const { error } = await supabase.auth.updateUser({ 
-        password: newPassword 
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword
       });
-      
+
       if (error) throw error;
-      
+
       toast.success("Password changed successfully");
       trackEvent('password_changed');
       setCurrentPassword("");
@@ -110,7 +109,7 @@ const AccountSettings = () => {
       toast.error("Failed to change password");
     }
   };
-  
+
   const handleToggleMFA = async () => {
     const newMfaState = !mfaEnabled;
     setMfaEnabled(newMfaState);
@@ -127,34 +126,34 @@ const AccountSettings = () => {
       }
     }
   };
-  
+
   const handleLogout = async () => {
     trackEvent('logged_out');
     await signOut();
     navigate('/login');
   };
-  
+
   const handleDeleteAccountConfirm = async () => {
     if (deleteConfirmText !== "DELETE") {
       toast.error("Please type DELETE to confirm");
       return;
     }
-    
+
     const success = await deleteAccount(deleteConfirmText);
-    
+
     if (success) {
       navigate('/');
     }
-    
+
     setDeleteDialogOpen(false);
     setDeleteConfirmText("");
   };
-  
+
   return (
     <PageLayout>
       <div className="mx-auto max-w-3xl">
         <h1 className="text-2xl font-bold mb-6">Account Settings</h1>
-        
+
         <div className="space-y-8">
           {/* Profile Summary */}
           <section aria-labelledby="profile-heading" className="bg-card rounded-lg shadow">
@@ -163,24 +162,24 @@ const AccountSettings = () => {
                 <User className="h-5 w-5" />
                 Profile Summary
               </h2>
-              
+
               <div className="mt-4 space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="space-y-1">
                     <p className="text-sm font-medium">Email</p>
                     <p className="text-sm text-muted-foreground">{user?.email}</p>
                   </div>
-                  
+
                   <div className="space-y-1">
                     <p className="text-sm font-medium">Display Name</p>
                     <p className="text-sm text-muted-foreground">
                       {profile?.display_name || user?.user_metadata?.full_name || "Not set"}
                     </p>
                   </div>
-                  
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
+
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={handleEditProfile}
                     className="flex items-center gap-1 self-start"
                   >
@@ -191,7 +190,7 @@ const AccountSettings = () => {
               </div>
             </div>
           </section>
-          
+
           {/* Security Settings */}
           <section aria-labelledby="security-heading" className="bg-card rounded-lg shadow">
             <div className="p-6">
@@ -199,7 +198,7 @@ const AccountSettings = () => {
                 <LockIcon className="h-5 w-5" />
                 Security Settings
               </h2>
-              
+
               <div className="mt-4 space-y-6">
                 <div>
                   <h3 className="font-medium mb-3">Change Password</h3>
@@ -207,42 +206,42 @@ const AccountSettings = () => {
                     <form onSubmit={handleChangePassword} className="space-y-4">
                       <div className="grid gap-2">
                         <Label htmlFor="current-password">Current Password</Label>
-                        <Input 
-                          id="current-password" 
-                          type="password" 
+                        <Input
+                          id="current-password"
+                          type="password"
                           value={currentPassword}
                           onChange={(e) => setCurrentPassword(e.target.value)}
                           required
                         />
                       </div>
-                      
+
                       <div className="grid gap-2">
                         <Label htmlFor="new-password">New Password</Label>
-                        <Input 
-                          id="new-password" 
-                          type="password" 
+                        <Input
+                          id="new-password"
+                          type="password"
                           value={newPassword}
                           onChange={(e) => setNewPassword(e.target.value)}
                           required
                         />
                       </div>
-                      
+
                       <div className="grid gap-2">
                         <Label htmlFor="confirm-password">Confirm New Password</Label>
-                        <Input 
-                          id="confirm-password" 
-                          type="password" 
+                        <Input
+                          id="confirm-password"
+                          type="password"
                           value={confirmPassword}
                           onChange={(e) => setConfirmPassword(e.target.value)}
                           required
                         />
                       </div>
-                      
+
                       <div className="flex gap-2">
                         <Button type="submit">Update Password</Button>
-                        <Button 
-                          type="button" 
-                          variant="outline" 
+                        <Button
+                          type="button"
+                          variant="outline"
                           onClick={() => setIsChangingPassword(false)}
                         >
                           Cancel
@@ -255,9 +254,9 @@ const AccountSettings = () => {
                     </Button>
                   )}
                 </div>
-                
+
                 <Separator />
-                
+
                 <div>
                   <div className="flex items-center justify-between">
                     <div>
@@ -281,7 +280,7 @@ const AccountSettings = () => {
               </div>
             </div>
           </section>
-          
+
           {/* Savings Settings */}
           <section aria-labelledby="savings-heading" className="bg-card rounded-lg shadow">
             <div className="p-6">
@@ -289,16 +288,36 @@ const AccountSettings = () => {
                 <Wallet className="h-5 w-5" />
                 Automated Savings
               </h2>
-              
+
               <div className="mt-4">
                 <SavingsSettings />
               </div>
             </div>
           </section>
 
-                    {/* Solo Savings Goals */}
-          <SoloSavingsGoalsSection />
-          
+          {/* Individual Savings Goals Navigation */}
+          <section aria-labelledby="individual-savings-heading" className="bg-card rounded-lg shadow">
+            <div className="p-6">
+              <h2 id="individual-savings-heading" className="text-xl font-semibold flex items-center gap-2">
+                <PiggyBank className="h-5 w-5" />
+                Individual Savings Goals
+              </h2>
+              
+              <div className="mt-4">
+                <p className="text-sm text-muted-foreground mb-4">
+                  Set personal savings targets and track your progress towards financial goals.
+                </p>
+                <Button
+                  onClick={() => navigate('/individual-savings-goals')}
+                  className="flex items-center gap-2"
+                >
+                  <Target className="h-4 w-4" />
+                  Manage Savings Goals
+                </Button>
+              </div>
+            </div>
+          </section>
+
           {/* Notification Preferences */}
           <section aria-labelledby="notifications-heading" className="bg-card rounded-lg shadow">
             <div className="p-6">
@@ -306,40 +325,40 @@ const AccountSettings = () => {
                 <BellIcon className="h-5 w-5" />
                 Notification Preferences
               </h2>
-              
+
               <div className="mt-4 space-y-4">
                 {isLoading ? (
                   <p className="text-sm text-muted-foreground">Loading preferences...</p>
                 ) : (
-                  <NotificationPreferencesForm 
-                    preferences={preferences} 
-                    isSaving={isSaving} 
-                    savePreferences={savePreferences} 
+                  <NotificationPreferencesForm
+                    preferences={preferences}
+                    isSaving={isSaving}
+                    savePreferences={savePreferences}
                   />
                 )}
               </div>
             </div>
           </section>
-          
+
           {/* Account Controls */}
           <section aria-labelledby="account-controls-heading" className="bg-card rounded-lg shadow">
             <div className="p-6">
               <h2 id="account-controls-heading" className="text-xl font-semibold">
                 Account Controls
               </h2>
-              
+
               <div className="mt-4 flex flex-col sm:flex-row gap-4">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={handleLogout}
                   className="flex items-center gap-1"
                 >
                   <LogOut className="h-4 w-4" />
                   Log Out
                 </Button>
-                
-                <Button 
-                  variant="destructive" 
+
+                <Button
+                  variant="destructive"
                   onClick={() => setDeleteDialogOpen(true)}
                   className="flex items-center gap-1"
                 >
@@ -351,7 +370,7 @@ const AccountSettings = () => {
           </section>
         </div>
       </div>
-      
+
       {/* Delete Account Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>
@@ -362,7 +381,7 @@ const AccountSettings = () => {
               and remove all your data from our servers.
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-4 py-4">
             <p className="text-sm font-medium">
               Please type <strong>DELETE</strong> to confirm:
@@ -373,7 +392,7 @@ const AccountSettings = () => {
               placeholder="DELETE"
             />
           </div>
-          
+
           <DialogFooter>
             <Button
               variant="outline"
@@ -392,7 +411,7 @@ const AccountSettings = () => {
         </DialogContent>
       </Dialog>
 
-      
+
     </PageLayout>
   );
 };

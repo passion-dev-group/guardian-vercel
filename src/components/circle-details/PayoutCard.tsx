@@ -1,16 +1,11 @@
-import { useState } from "react";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useCirclePayouts } from "@/hooks/useCirclePayouts";
-import { useAuth } from "@/contexts/AuthContext";
-import { plaidService } from "@/lib/plaid";
-import { useToast } from "@/components/ui/use-toast";
-import { trackEvent } from "@/lib/analytics";
 import { formatCurrency, formatDateRelative } from "@/lib/utils";
-import { PaymentNotificationService } from "@/lib/notifications";
 import { 
   DollarSign, 
   Users, 
@@ -29,80 +24,9 @@ interface PayoutCardProps {
 }
 
 export function PayoutCard({ circleId, circleName, isAdmin }: PayoutCardProps) {
-  const { user } = useAuth();
-  const { toast } = useToast();
-  const { payoutInfo, loading, refreshPayoutInfo } = useCirclePayouts(circleId);
-  const [isProcessingPayout, setIsProcessingPayout] = useState(false);
+  const { payoutInfo, loading } = useCirclePayouts(circleId);
 
-  const handleProcessPayout = async () => {
-    if (!user || !payoutInfo.nextPayoutMember) return;
 
-    // Check if funds are actually available for payout
-    if (payoutInfo.availablePool <= 0) {
-      toast({
-        title: "No Funds Available",
-        description: payoutInfo.pendingContributions > 0 
-          ? `${payoutInfo.pendingContributions} contributions are still processing. Please wait for funds to become available.`
-          : "No funds are currently available for payout.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsProcessingPayout(true);
-
-    // Show pending notification
-    PaymentNotificationService.showPendingNotification('payout', payoutInfo.availablePool, circleName);
-
-    try {
-      const payoutResult = await plaidService.processCirclePayout({
-        circle_id: circleId,
-        member_id: payoutInfo.nextPayoutMember.id,
-        admin_user_id: user.id,
-        payout_amount: payoutInfo.availablePool,
-      });
-
-      if (payoutResult.success) {
-        // Track the payout event
-        trackEvent('circle_payout_processed', {
-          circle_id: circleId,
-          circle_name: circleName,
-          amount: payoutResult.amount,
-          member_id: payoutInfo.nextPayoutMember.user_id,
-          transaction_id: payoutResult.transaction_id,
-        });
-
-        // Show success notification
-        PaymentNotificationService.showPaymentNotification({
-          type: 'payout',
-          success: true,
-          amount: payoutResult.amount,
-          circleName: circleName,
-          transactionId: payoutResult.transaction_id,
-          recipientName: payoutInfo.nextPayoutMember.profile.display_name,
-        });
-
-        // Refresh payout info
-        refreshPayoutInfo();
-      } else {
-        throw new Error(payoutResult.message || payoutResult.error || "Payout processing failed");
-      }
-    } catch (error) {
-      console.error("Error processing payout:", error);
-      
-      // Show error notification
-      PaymentNotificationService.showPaymentNotification({
-        type: 'payout',
-        success: false,
-        amount: payoutInfo.availablePool,
-        circleName: circleName,
-        transactionId: '',
-        error: error instanceof Error ? error.message : "There was an error processing the payout. Please try again.",
-      });
-    } finally {
-      setIsProcessingPayout(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -129,7 +53,7 @@ export function PayoutCard({ circleId, circleName, isAdmin }: PayoutCardProps) {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <DollarSign className="h-5 w-5" />
-          Payout Management
+          Payout Status
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -202,20 +126,11 @@ export function PayoutCard({ circleId, circleName, isAdmin }: PayoutCardProps) {
               </div>
             </div>
 
-            {isAdmin && (
+            {payoutInfo.pendingContributions > 0 && (
               <div className="mt-3">
-                <Button 
-                  className="w-full" 
-                  onClick={handleProcessPayout}
-                  disabled={isProcessingPayout || payoutInfo.availablePool <= 0}
-                >
-                  {isProcessingPayout ? "Processing..." : `Process Payout (${formatCurrency(payoutInfo.availablePool)})`}
-                </Button>
-                {payoutInfo.availablePool <= 0 && payoutInfo.pendingContributions > 0 && (
-                  <p className="text-sm text-muted-foreground mt-1 text-center">
-                    Waiting for {payoutInfo.pendingContributions} contribution{payoutInfo.pendingContributions > 1 ? 's' : ''} to clear
-                  </p>
-                )}
+                <p className="text-sm text-muted-foreground text-center">
+                  Waiting for {payoutInfo.pendingContributions} contribution{payoutInfo.pendingContributions > 1 ? 's' : ''} to clear
+                </p>
               </div>
             )}
           </div>

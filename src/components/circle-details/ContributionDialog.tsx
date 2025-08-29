@@ -18,7 +18,8 @@ import { formatCurrency } from "@/lib/utils";
 import { plaidService } from "@/lib/plaid";
 import { PaymentNotificationService } from "@/lib/notifications";
 import { useLinkedBankAccounts } from "@/hooks/useLinkedBankAccounts";
-import { DollarSign, Calendar, Users, CreditCard, AlertCircle } from "lucide-react";
+import { useContributionLimit } from "@/hooks/useContributionLimit";
+import { DollarSign, Calendar, Users, CreditCard, AlertCircle, Clock } from "lucide-react";
 
 interface ContributionDialogProps {
   circleId: string;
@@ -40,6 +41,14 @@ export function ContributionDialog({
   const { user } = useAuth();
   const { toast } = useToast();
   const { accounts, loading: accountsLoading } = useLinkedBankAccounts();
+  const { 
+    canContribute, 
+    nextAllowedDate, 
+    daysUntilNextContribution, 
+    contributionsThisCycle,
+    isLoading: contributionLimitLoading,
+    error: contributionLimitError 
+  } = useContributionLimit(circleId);
   const [isProcessing, setIsProcessing] = useState(false);
   const [customAmount, setCustomAmount] = useState(contributionAmount.toString());
   const [useCustomAmount, setUseCustomAmount] = useState(false);
@@ -50,6 +59,16 @@ export function ContributionDialog({
       toast({
         title: "Authentication Required",
         description: "Please log in to make a contribution.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check contribution limit
+    if (!canContribute) {
+      toast({
+        title: "Contribution Limit Reached",
+        description: `You've already contributed this cycle. Next contribution allowed ${daysUntilNextContribution > 0 ? `in ${daysUntilNextContribution} days` : 'soon'}.`,
         variant: "destructive",
       });
       return;
@@ -185,6 +204,48 @@ export function ContributionDialog({
             </div>
           </div>
 
+          {/* Contribution Limit Status */}
+          {contributionLimitLoading ? (
+            <div className="bg-muted/50 rounded-lg p-4">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 animate-spin" />
+                <span className="text-sm">Checking contribution status...</span>
+              </div>
+            </div>
+          ) : contributionLimitError ? (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-red-500" />
+                <span className="text-sm text-red-700">Error: {contributionLimitError}</span>
+              </div>
+            </div>
+          ) : !canContribute ? (
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Clock className="h-4 w-4 text-orange-500" />
+                <span className="text-sm font-medium text-orange-700">Contribution Limit Reached</span>
+              </div>
+              <p className="text-sm text-orange-600">
+                You've already contributed {contributionsThisCycle} time(s) this cycle.
+                {daysUntilNextContribution > 0 && (
+                  <span className="block mt-1">
+                    Next contribution allowed in {daysUntilNextContribution} day{daysUntilNextContribution !== 1 ? 's' : ''}.
+                  </span>
+                )}
+              </p>
+            </div>
+          ) : (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className="flex items-center gap-2">
+                <DollarSign className="h-4 w-4 text-green-500" />
+                <span className="text-sm font-medium text-green-700">Ready to Contribute</span>
+              </div>
+              <p className="text-sm text-green-600 mt-1">
+                You can make a contribution for this cycle.
+              </p>
+            </div>
+          )}
+
           {/* Contribution Amount */}
           <div className="space-y-3">
             <Label htmlFor="contribution-amount">Contribution Amount</Label>
@@ -200,11 +261,11 @@ export function ContributionDialog({
                   className="h-4 w-4"
                 />
                 <Label htmlFor="standard-amount" className="text-sm font-normal">
-                  Standard amount ({formatCurrency(contributionAmount)})
+                  Standard Amount ({formatCurrency(contributionAmount)})
                 </Label>
               </div>
               
-              <div className="flex items-center space-x-2">
+              {/* <div className="flex items-center space-x-2">
                 <input
                   type="radio"
                   id="custom-amount"
@@ -216,7 +277,7 @@ export function ContributionDialog({
                 <Label htmlFor="custom-amount" className="text-sm font-normal">
                   Custom amount
                 </Label>
-              </div>
+              </div> */}
             </div>
 
             {useCustomAmount && (
@@ -295,10 +356,13 @@ export function ContributionDialog({
           </Button>
           <Button
             onClick={handleContribution}
-            disabled={isProcessing || accounts.length === 0}
+            disabled={isProcessing || accounts.length === 0 || !canContribute || contributionLimitLoading}
             className="min-w-[120px]"
           >
-            {isProcessing ? "Processing..." : "Contribute"}
+            {isProcessing ? "Processing..." : 
+             contributionLimitLoading ? "Checking..." :
+             !canContribute ? "Already Contributed" : 
+             "Contribute"}
           </Button>
         </div>
       </DialogContent>

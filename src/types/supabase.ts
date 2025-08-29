@@ -16,6 +16,7 @@ export interface Database {
           name: string
           contribution_amount: number
           frequency: string
+          status: string
           created_at: string
           created_by: string
         }
@@ -24,6 +25,7 @@ export interface Database {
           name: string
           contribution_amount: number
           frequency: string
+          status?: string
           created_at?: string
           created_by: string
         }
@@ -32,6 +34,7 @@ export interface Database {
           name?: string
           contribution_amount?: number
           frequency?: string
+          status?: string
           created_at?: string
           created_by?: string
         }

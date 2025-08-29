@@ -126,14 +126,56 @@ async function initializeRotation(circleId: string, adminUserId: string): Promis
     throw new Error("User is not an admin of this circle");
   }
   
-  // Assign payout positions (1, 2, 3, ...)
+  // Get contribution times for each member to determine payout order
+  const { data: contributions, error: contributionsError } = await supabase
+    .from('circle_transactions')
+    .select('user_id, transaction_date')
+    .eq('circle_id', circleId)
+    .eq('type', 'contribution')
+    .eq('status', 'completed')
+    .order('transaction_date', { ascending: true });
+
+  if (contributionsError) {
+    console.error("Error fetching contributions:", contributionsError);
+    throw contributionsError;
+  }
+
+  // Create a map of user_id to their first contribution time
+  const contributionTimes = new Map<string, string>();
+  contributions?.forEach(contrib => {
+    if (!contributionTimes.has(contrib.user_id)) {
+      contributionTimes.set(contrib.user_id, contrib.transaction_date);
+    }
+  });
+
+  // Sort members by contribution time (earliest first gets first payout)
+  const sortedMembers = [...members].sort((a, b) => {
+    const aTime = contributionTimes.get(a.user_id);
+    const bTime = contributionTimes.get(b.user_id);
+    
+    // If neither has contributed, maintain original order
+    if (!aTime && !bTime) return 0;
+    // If only one has contributed, they get priority
+    if (!aTime) return 1;
+    if (!bTime) return -1;
+    // Compare contribution times
+    return new Date(aTime).getTime() - new Date(bTime).getTime();
+  });
+
+  console.log("Payout order based on contribution times:", sortedMembers.map(m => ({
+    user_id: m.user_id,
+    contribution_time: contributionTimes.get(m.user_id)
+  })));
+  
+  // Assign payout positions based on contribution order (1, 2, 3, ...)
   const updatedMembers = await Promise.all(
-    members.map(async (member, index) => {
+    sortedMembers.map(async (member, index) => {
       const position = index + 1;
-      const nextPayoutDate = position === 1 ? new Date() : null;
       
-      // Calculate next payout date based on circle frequency
-      if (nextPayoutDate) {
+      // Calculate next payout date for the first member
+      let nextPayoutDate: Date | null = null;
+      if (position === 1) {
+        nextPayoutDate = new Date();
         if (circle.frequency === 'weekly') {
           nextPayoutDate.setDate(nextPayoutDate.getDate() + 7);
         } else if (circle.frequency === 'biweekly') {

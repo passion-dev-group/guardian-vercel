@@ -15,10 +15,10 @@ import CircleActionsPanel from "@/components/circle-details/CircleActionsPanel";
 import ActivityLog from "@/components/circle-details/ActivityLog";
 import RealPaymentProcessor from "@/components/circle-details/RealPaymentProcessor";
 import { PayoutCard } from "@/components/circle-details/PayoutCard";
-import RotationManager from "@/components/circle-details/RotationManager";
 import CircleStatsWidget from "@/components/circle-details/CircleStatsWidget";
 import CircleAnalyticsWidget from "@/components/circle-details/CircleAnalyticsWidget";
 import StartCircleButton from "@/components/circle-details/StartCircleButton";
+import PayoutTimeline from "@/components/circle-details/PayoutTimeline";
 
 const CircleDetails = () => {
   const { circleId } = useParams<{ circleId: string }>();
@@ -136,6 +136,16 @@ const CircleDetails = () => {
               />
             </section>
             
+            <section aria-labelledby="timeline-heading">
+              <h2 id="timeline-heading" className="text-xl font-semibold mb-4">Payout Timeline</h2>
+              <PayoutTimeline 
+                circleId={circleId!}
+                circleName={circle.name}
+                contributionAmount={circle.contribution_amount}
+                frequency={circle.frequency}
+              />
+            </section>
+
             <section aria-labelledby="activity-heading">
               <h2 id="activity-heading" className="text-xl font-semibold mb-4">Activity Log</h2>
               <ActivityLog circleId={circleId} />
@@ -185,13 +195,7 @@ const CircleDetails = () => {
               </section>
             )}
             
-            <section aria-labelledby="rotation-heading">
-              <h2 id="rotation-heading" className="text-xl font-semibold mb-4">Rotation Management</h2>
-              <RotationManager 
-                circleId={circleId!}
-                isAdmin={isAdmin}
-              />
-            </section>
+
             
             <section aria-labelledby="schedule-heading">
               <h2 id="schedule-heading" className="text-xl font-semibold mb-4">Contribution Schedule</h2>

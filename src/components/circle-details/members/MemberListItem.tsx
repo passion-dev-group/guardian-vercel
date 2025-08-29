@@ -166,9 +166,10 @@ const MemberListItem = ({ member, isAdmin, onRemind, isReminding, currentUserId 
         )}
       </TableCell>
       <TableCell className="text-right">
-        {/* Only show actions if user can send reminders AND it's not the current user */}
-        {(isAdmin || member.contribution_status === "overdue") &&
-          currentUserId && member.user_id !== currentUserId && (
+        {/* Only show actions if user can send reminders AND it's not the current user AND member needs a reminder */}
+        {(isAdmin || member.contribution_status === "overdue" || member.contribution_status === "due") &&
+          currentUserId && member.user_id !== currentUserId && 
+          member.contribution_status !== "paid" && (
             <div className="flex items-center gap-2 justify-end">
               {member.last_reminder_date && (
                 <TooltipProvider>
