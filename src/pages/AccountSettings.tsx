@@ -295,29 +295,6 @@ const AccountSettings = () => {
             </div>
           </section>
 
-          {/* Individual Savings Goals Navigation */}
-          <section aria-labelledby="individual-savings-heading" className="bg-card rounded-lg shadow">
-            <div className="p-6">
-              <h2 id="individual-savings-heading" className="text-xl font-semibold flex items-center gap-2">
-                <PiggyBank className="h-5 w-5" />
-                Individual Savings Goals
-              </h2>
-              
-              <div className="mt-4">
-                <p className="text-sm text-muted-foreground mb-4">
-                  Set personal savings targets and track your progress towards financial goals.
-                </p>
-                <Button
-                  onClick={() => navigate('/individual-savings-goals')}
-                  className="flex items-center gap-2"
-                >
-                  <Target className="h-4 w-4" />
-                  Manage Savings Goals
-                </Button>
-              </div>
-            </div>
-          </section>
-
           {/* Notification Preferences */}
           <section aria-labelledby="notifications-heading" className="bg-card rounded-lg shadow">
             <div className="p-6">

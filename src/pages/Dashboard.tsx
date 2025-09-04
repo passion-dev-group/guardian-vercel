@@ -3,10 +3,8 @@ import { Link } from "react-router-dom";
 import PageLayout from "@/components/PageLayout";
 import ActivityFeed from "@/components/dashboard/ActivityFeed";
 import CircleCard from "@/components/dashboard/CircleCard";
-import NextPayoutWidget from "@/components/dashboard/NextPayoutWidget";
 import QuickActionsBar from "@/components/dashboard/QuickActionsBar";
 import UserPlanOverview from "@/components/pricing/UserPlanOverview";
-import RotationOverviewWidget from "@/components/dashboard/RotationOverviewWidget";
 import ContributionSummaryWidget from "@/components/dashboard/ContributionSummaryWidget";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
@@ -242,22 +240,7 @@ const Dashboard = () => {
 
               {/* Right column */}
               <div className="space-y-6">
-                <NextPayoutWidget
-                  payoutDate={null}
-                  amount={0}
-                  circleId={null}
-                />
-                
-                <ContributionSummaryWidget />
-                
-                {/* Show rotation status for the first active circle */}
-                {circles.length > 0 && (
-                  <RotationOverviewWidget
-                    circleId={circles[0].id}
-                    circleName={circles[0].name}
-                    isAdmin={false} // We'll need to determine admin status
-                  />
-                )}
+                <ContributionSummaryWidget />                
                 
                 <ActivityFeed />
               </div>

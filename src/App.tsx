@@ -30,6 +30,7 @@ const SavingsGoals = lazy(() => import("./pages/SavingsGoals"));
 const GoalDetailsPage = lazy(() => import("./pages/GoalDetailsPage"));
 const SoloGoalDetailsPage = lazy(() => import("./pages/SoloGoalDetailsPage"));
 const IndividualSavingsGoals = lazy(() => import("./pages/IndividualSavingsGoals"));
+const IndividualGoalDetails = lazy(() => import("./pages/IndividualGoalDetails"));
 const About = lazy(() => import("./pages/About"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const LoadingSpinner = lazy(() => import("@/components/LoadingSpinner"));
@@ -261,6 +262,16 @@ const AnimatedRoutes = () => {
               <AnimatedPageWrapper>
                 <AuthGuard>
                   <IndividualSavingsGoals />
+                </AuthGuard>
+              </AnimatedPageWrapper>
+            }
+          />
+          <Route
+            path="/individual-savings-goals/:goalId"
+            element={
+              <AnimatedPageWrapper>
+                <AuthGuard>
+                  <IndividualGoalDetails />
                 </AuthGuard>
               </AnimatedPageWrapper>
             }

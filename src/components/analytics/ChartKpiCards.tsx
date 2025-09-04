@@ -35,7 +35,7 @@ export const ChartKpiCards: React.FC<ChartKpiCardsProps> = ({
         });
 
         if (error) throw error;
-
+        console.log('data', data);
         if (data) {
           setMetrics({
             totalCircles: data.total_circles || 0,
@@ -53,7 +53,7 @@ export const ChartKpiCards: React.FC<ChartKpiCardsProps> = ({
 
     fetchMetrics();
   }, [startDate, endDate, frequency, userTier]);
-
+  console.log('metrics', metrics);
   if (metrics.isLoading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
