@@ -6,6 +6,7 @@ import { useUserTier } from '@/hooks/useUserTier';
 import { useUserBadges } from '@/hooks/useUserBadges';
 import { SocialFeedPost } from '@/components/social/SocialFeedPost';
 import { CreatePostForm } from '@/components/social/CreatePostForm';
+import Leaderboards from '@/components/social/Leaderboards';
 import { TierBadge } from '@/components/gamification/TierBadge';
 import { StreakCounter } from '@/components/gamification/StreakCounter';
 import { AchievementBadge } from '@/components/gamification/AchievementBadge';
@@ -53,10 +54,14 @@ const SocialFeed: React.FC = () => {
         </header>
         
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full mb-6">
-          <TabsList className="grid w-full grid-cols-2 mb-4">
+          <TabsList className="grid w-full grid-cols-3 mb-4">
             <TabsTrigger value="feed" className="flex items-center">
               <ActivityIcon className="w-4 h-4 mr-2" />
               Feed
+            </TabsTrigger>
+            <TabsTrigger value="leaderboards" className="flex items-center">
+              <Award className="w-4 h-4 mr-2" />
+              Leaderboards
             </TabsTrigger>
             <TabsTrigger value="community" className="flex items-center">
               <UserIcon className="w-4 h-4 mr-2" />
@@ -216,11 +221,15 @@ const SocialFeed: React.FC = () => {
             </div>
           </TabsContent>
           
+          <TabsContent value="leaderboards">
+            <Leaderboards />
+          </TabsContent>
+          
           <TabsContent value="community">
             <Card className="p-6 text-center">
               <h3 className="text-lg font-medium mb-2">Community Features Coming Soon</h3>
               <p className="text-muted-foreground">
-                We're working on expanding our social features. Stay tuned for community profiles, leaderboards, and more!
+                We're working on expanding our social features. Stay tuned for community profiles, friend connections, and more!
               </p>
             </Card>
           </TabsContent>
