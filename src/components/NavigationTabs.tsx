@@ -13,7 +13,8 @@ import {
   Banknote,
   DollarSign,
   LogOut,
-  CreditCard
+  CreditCard,
+  Gift
 } from 'lucide-react';
 import { trackEvent } from '@/lib/analytics';
 
@@ -37,6 +38,7 @@ const NavigationTabs: React.FC = () => {
     { name: 'Savings Goals', path: '/savings-goals', icon: Target },
     { name: 'Create Circle', path: '/create-circle', icon: PlusCircle },
     { name: 'Social Feed', path: '/feed', icon: Users },
+    { name: 'Referrals', path: '/referrals', icon: Gift },
     { name: 'Analytics', path: '/analytics', icon: BarChart3 },
     { name: 'My Plan', path: '/pricing', icon: CreditCard },
     { name: 'Profile', path: '/profile', icon: UserCircle },

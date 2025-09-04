@@ -1,12 +1,14 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Gift } from "lucide-react";
+import { useReferrals } from "@/hooks/useReferrals";
 
 const Signup = () => {
   const [email, setEmail] = useState("");
@@ -17,15 +19,39 @@ const Signup = () => {
   const { signUp, user } = useAuth();
   const navigate = useNavigate();
   const [redirectAttempted, setRedirectAttempted] = useState(false);
+  const [searchParams] = useSearchParams();
+  const { processReferralCompletion } = useReferrals();
+  
+  // Get referral code from URL
+  const referralCode = searchParams.get('ref');
 
   // Use useEffect for redirection instead of doing it during render
   useEffect(() => {
     // Only redirect if user is logged in and we haven't already attempted a redirect
     if (user && !redirectAttempted) {
       setRedirectAttempted(true);
+      
+      // Process referral completion if there's a referral code
+      if (referralCode) {
+        console.log('Processing referral completion:', { referralCode, userId: user.id });
+        processReferralCompletion(referralCode, user.id, 'signup').then((result) => {
+          console.log('Referral completion result:', result);
+          if (result.success) {
+            toast.success(`Welcome! Your referrer earned $${result.rewardAmount} for inviting you!`);
+          } else {
+            console.error('Referral completion failed:', result.error);
+            // Still show a welcome message, but log the error
+            toast.success('Welcome to MiTurn! Your account has been created successfully.');
+          }
+        }).catch((error) => {
+          console.error('Error processing referral completion:', error);
+          toast.success('Welcome to MiTurn! Your account has been created successfully.');
+        });
+      }
+      
       navigate("/verify-identity", { replace: true });
     }
-  }, [user, navigate, redirectAttempted]);
+  }, [user, navigate, redirectAttempted, referralCode, processReferralCompletion]);
 
   const validatePassword = (password: string) => {
     return password.length >= 6; // Basic validation, can be expanded
@@ -87,6 +113,17 @@ const Signup = () => {
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl font-bold">Create an account</CardTitle>
             <CardDescription>Enter your information to create an account</CardDescription>
+            {referralCode && (
+              <div className="flex items-center space-x-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                <Gift className="h-4 w-4 text-green-600" />
+                <span className="text-sm text-green-800">
+                  You're signing up with a referral code!
+                </span>
+                <Badge variant="secondary" className="bg-green-100 text-green-800">
+                  Bonus Eligible
+                </Badge>
+              </div>
+            )}
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
