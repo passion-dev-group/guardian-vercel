@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { 
   Users, 
   Gift, 
@@ -26,7 +27,8 @@ import {
   RefreshCcw,
   ExternalLink,
   Zap,
-  Send
+  Send,
+  Trash2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -39,6 +41,7 @@ const Referrals: React.FC = () => {
     generateReferralCode, 
     claimRewards, 
     shareReferralCode,
+    deleteReferral,
     refreshStats,
     refreshLeaderboard
   } = useReferrals();
@@ -170,6 +173,21 @@ const Referrals: React.FC = () => {
       day: 'numeric',
       year: 'numeric'
     });
+  };
+
+  const handleDeleteReferral = async (referralId: string, referralCode: string) => {
+    try {
+      const result = await deleteReferral(referralId);
+      
+      if (result.success) {
+        toast.success(`Referral code ${referralCode} deleted successfully`);
+      } else {
+        toast.error(result.error || 'Failed to delete referral');
+      }
+    } catch (error) {
+      console.error('Error deleting referral:', error);
+      toast.error('Failed to delete referral');
+    }
   };
 
   return (
@@ -349,12 +367,47 @@ const Referrals: React.FC = () => {
                                 </div>
                               </div>
                               
-                              <div className="text-right">
-                                <p className="font-semibold text-green-600">
-                                  {referral.reward_amount > 0 ? formatCurrency(referral.reward_amount) : '-'}
-                                </p>
-                                {referral.reward_claimed && (
-                                  <p className="text-xs text-muted-foreground">Claimed</p>
+                              <div className="flex items-center space-x-3">
+                                <div className="text-right">
+                                  <p className="font-semibold text-green-600">
+                                    {referral.reward_amount > 0 ? formatCurrency(referral.reward_amount) : '-'}
+                                  </p>
+                                  {referral.reward_claimed && (
+                                    <p className="text-xs text-muted-foreground">Claimed</p>
+                                  )}
+                                </div>
+                                
+                                {/* Delete button - only show for pending referrals */}
+                                {referral.status === 'pending' && (
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="text-muted-foreground hover:text-destructive"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Delete Referral</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          Are you sure you want to delete the referral code "{referral.referral_code}"? 
+                                          This action cannot be undone and the referral link will no longer work.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction
+                                          onClick={() => handleDeleteReferral(referral.id, referral.referral_code)}
+                                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                        >
+                                          Delete
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
                                 )}
                               </div>
                             </div>

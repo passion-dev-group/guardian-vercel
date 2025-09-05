@@ -307,6 +307,50 @@ export const useReferrals = () => {
     }
   }, []);
 
+  const deleteReferral = useCallback(async (referralId: string) => {
+    if (!user?.id) {
+      return { success: false, error: 'User not authenticated' };
+    }
+
+    try {
+      const { data, error } = await supabase
+        .rpc('delete_referral', {
+          p_referral_id: referralId,
+          p_user_id: user.id
+        });
+
+      if (error) {
+        console.error('Error deleting referral:', error);
+        return { success: false, error: error.message };
+      }
+
+      if (!data?.success) {
+        return { success: false, error: data?.error || 'Failed to delete referral' };
+      }
+
+      // Track the deletion
+      trackEvent('referral_deleted', {
+        referral_id: referralId,
+        referral_code: data.deleted_referral_code
+      });
+
+      // Refresh stats to update the UI
+      await fetchReferralStats();
+
+      return { 
+        success: true, 
+        message: data.message,
+        deletedCode: data.deleted_referral_code 
+      };
+    } catch (error) {
+      console.error('Error deleting referral:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Failed to delete referral' 
+      };
+    }
+  }, [user?.id, supabase, fetchReferralStats]);
+
   // Initialize data on mount and user change
   useEffect(() => {
     fetchReferralStats();
@@ -325,6 +369,7 @@ export const useReferrals = () => {
     claimRewards,
     shareReferralCode,
     processReferralCompletion,
+    deleteReferral,
     
     // Refresh functions
     refreshStats: fetchReferralStats,
