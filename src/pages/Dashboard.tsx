@@ -5,7 +5,6 @@ import ActivityFeed from "@/components/dashboard/ActivityFeed";
 import CircleCard from "@/components/dashboard/CircleCard";
 import QuickActionsBar from "@/components/dashboard/QuickActionsBar";
 import UserPlanOverview from "@/components/pricing/UserPlanOverview";
-import ContributionSummaryWidget from "@/components/dashboard/ContributionSummaryWidget";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import VerificationBanner from "@/components/VerificationBanner";
@@ -239,8 +238,7 @@ const Dashboard = () => {
               </div>
 
               {/* Right column */}
-              <div className="space-y-6">
-                <ContributionSummaryWidget />                
+              <div className="space-y-6">                
                 
                 <ActivityFeed />
               </div>
