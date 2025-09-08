@@ -119,11 +119,11 @@ function GoalCard({ goal }: { goal: any }) {
   const { contributions, createContribution, updateContribution, deleteContribution, triggerPlaidTransfer } = useSoloSavingsRecurringContributions(goal.id);
   const [showRecurringSetup, setShowRecurringSetup] = useState(false);
   const [recurringAmount, setRecurringAmount] = useState('');
-  const [recurringFrequency, setRecurringFrequency] = useState<'weekly' | 'biweekly' | 'monthly'>('weekly');
+  const [recurringFrequency, setRecurringFrequency] = useState<'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly'>('weekly');
   const [recurringDay, setRecurringDay] = useState('1'); // Default to day 1 for monthly, will be updated when frequency changes
 
   // Update day when frequency changes
-  const handleFrequencyChange = (newFrequency: 'weekly' | 'biweekly' | 'monthly') => {
+  const handleFrequencyChange = (newFrequency: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly') => {
     setRecurringFrequency(newFrequency);
     if (newFrequency === 'monthly') {
       setRecurringDay('1'); // Default to 1st of month

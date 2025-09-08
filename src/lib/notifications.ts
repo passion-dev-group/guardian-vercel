@@ -4,10 +4,11 @@ import { formatCurrency } from "@/lib/utils";
 import { trackEvent } from "@/lib/analytics";
 
 export interface PaymentNotificationData {
-  type: 'contribution' | 'payout';
+  type: 'contribution' | 'payout' | 'deposit';
   success: boolean;
   amount: number;
-  circleName: string;
+  circleName?: string;
+  goalName?: string;
   transactionId: string;
   error?: string;
   recipientName?: string;
@@ -42,7 +43,7 @@ export class PaymentNotificationService {
    * Show success notification for payments
    */
   private static showPaymentSuccessNotification(data: PaymentNotificationData) {
-    const { type, amount, circleName, recipientName } = data;
+    const { type, amount, circleName, goalName, recipientName } = data;
 
     if (type === 'contribution') {
       toast({
@@ -56,6 +57,12 @@ export class PaymentNotificationService {
         description: `Successfully processed payout of ${formatCurrency(amount)} to ${recipientName || 'member'} from "${circleName}".`,
         duration: 5000,
       });
+    } else if (type === 'deposit') {
+      toast({
+        title: "💰 Deposit Successful!",
+        description: `Successfully deposited ${formatCurrency(amount)} to your "${goalName}" savings goal.`,
+        duration: 5000,
+      });
     }
   }
 
@@ -63,7 +70,7 @@ export class PaymentNotificationService {
    * Show error notification for failed payments
    */
   private static showPaymentErrorNotification(data: PaymentNotificationData) {
-    const { type, amount, circleName, error } = data;
+    const { type, amount, circleName, goalName, error } = data;
 
     const errorMessage = error || "An unexpected error occurred. Please try again.";
 
@@ -81,17 +88,37 @@ export class PaymentNotificationService {
         variant: "destructive",
         duration: 8000,
       });
+    } else if (type === 'deposit') {
+      toast({
+        title: "❌ Deposit Failed",
+        description: `Failed to process your deposit of ${formatCurrency(amount)} to "${goalName}". ${errorMessage}`,
+        variant: "destructive",
+        duration: 8000,
+      });
     }
   }
 
   /**
    * Show pending payment notification
    */
-  static showPendingNotification(type: 'contribution' | 'payout', amount: number, circleName: string) {
-    const title = type === 'contribution' ? 'Processing Contribution...' : 'Processing Payout...';
-    const description = type === 'contribution' 
-      ? `Processing your contribution of ${formatCurrency(amount)} to "${circleName}"...`
-      : `Processing payout of ${formatCurrency(amount)} from "${circleName}"...`;
+  static showPendingNotification(type: 'contribution' | 'payout' | 'deposit', amount: number, nameContext: string) {
+    let title: string;
+    let description: string;
+
+    switch (type) {
+      case 'contribution':
+        title = 'Processing Contribution...';
+        description = `Processing your contribution of ${formatCurrency(amount)} to "${nameContext}"...`;
+        break;
+      case 'payout':
+        title = 'Processing Payout...';
+        description = `Processing payout of ${formatCurrency(amount)} from "${nameContext}"...`;
+        break;
+      case 'deposit':
+        title = 'Processing Deposit...';
+        description = `Processing your deposit of ${formatCurrency(amount)} to "${nameContext}"...`;
+        break;
+    }
 
     toast({
       title,

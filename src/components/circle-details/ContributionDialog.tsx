@@ -25,7 +25,7 @@ interface ContributionDialogProps {
   circleId: string;
   circleName: string;
   contributionAmount: number;
-  frequency: string;
+  frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly';
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -64,16 +64,6 @@ export function ContributionDialog({
       return;
     }
 
-    // Check contribution limit
-    if (!canContribute) {
-      toast({
-        title: "Contribution Limit Reached",
-        description: `You've already contributed this cycle. Next contribution allowed ${daysUntilNextContribution > 0 ? `in ${daysUntilNextContribution} days` : 'soon'}.`,
-        variant: "destructive",
-      });
-      return;
-    }
-
     const amount = useCustomAmount ? parseFloat(customAmount) : contributionAmount;
     
     if (isNaN(amount) || amount <= 0) {
@@ -106,34 +96,34 @@ export function ContributionDialog({
         throw new Error("Selected bank account not found");
       }
 
-      // Process the payment through Plaid
-      const paymentResult = await plaidService.processCirclePayment({
+      // Set up recurring transfer through Plaid
+      const recurringTransferResult = await plaidService.createRecurringTransfer({
         user_id: user.id,
-        circle_id: circleId,
         amount: amount,
         account_id: selectedAccountId,
         access_token: selectedAccount.plaid_access_token,
+        frequency: frequency,
         description: `Contribution to ${circleName}`,
+        type: 'circle',
+        target_id: circleId,
+        target_name: circleName,
       });
 
-      if (paymentResult.success) {
-        // Track the contribution event
-        trackEvent('circle_contribution_made', {
+      if (recurringTransferResult.success) {
+        // Track the contribution setup event
+        trackEvent('circle_recurring_contribution_setup', {
           circle_id: circleId,
           circle_name: circleName,
           amount: amount,
           frequency: frequency,
-          transaction_id: paymentResult.transaction_id,
+          recurring_transfer_id: recurringTransferResult.recurring_transfer_id,
         });
 
         // Show success notification
-        PaymentNotificationService.showPaymentNotification({
-          type: 'contribution',
-          success: true,
-          amount: amount,
-          circleName: circleName,
-          transactionId: paymentResult.transaction_id,
-          plaidTransferId: paymentResult.plaid_transfer_id,
+        toast({
+          title: "🎉 Recurring Contribution Set Up",
+          description: `Successfully set up ${frequency} contributions of ${formatCurrency(amount)} to "${circleName}".`,
+          duration: 5000,
         });
 
         // Close the dialog
@@ -144,20 +134,18 @@ export function ContributionDialog({
         setUseCustomAmount(false);
         setSelectedAccountId("");
       } else {
-        throw new Error(paymentResult.message || paymentResult.error || "Payment processing failed");
+        throw new Error(recurringTransferResult.message || recurringTransferResult.error || "Failed to set up recurring contribution");
       }
 
     } catch (error) {
       console.error("Error making contribution:", error);
       
       // Show error notification
-      PaymentNotificationService.showPaymentNotification({
-        type: 'contribution',
-        success: false,
-        amount: amount,
-        circleName: circleName,
-        transactionId: '',
-        error: error instanceof Error ? error.message : "There was an error processing your contribution. Please try again.",
+      toast({
+        title: "❌ Failed to Set Up Recurring Contribution",
+        description: error instanceof Error ? error.message : "There was an error setting up your recurring contribution. Please try again.",
+        variant: "destructive",
+        duration: 8000,
       });
     } finally {
       setIsProcessing(false);
@@ -196,7 +184,13 @@ export function ContributionDialog({
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">Frequency:</span>
-              <span className="text-sm capitalize">{frequency}</span>
+              <span className="text-sm">
+                {frequency === 'biweekly' ? 'Every 2 weeks' :
+                 frequency === 'quarterly' ? 'Every 3 months' :
+                 frequency === 'yearly' ? 'Yearly' :
+                 frequency === 'daily' ? 'Daily' :
+                 `${frequency.charAt(0).toUpperCase()}${frequency.slice(1)}ly`}
+              </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">Standard Amount:</span>

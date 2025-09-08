@@ -404,6 +404,209 @@ class PlaidService {
     }
   }
 
+  /**
+   * Create a recurring transfer for automatic savings (circles or savings goals)
+   */
+  async createRecurringTransfer(transferData: {
+    user_id: string;
+    amount: number;
+    account_id: string;
+    access_token: string;
+    frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly';
+    day_of_week?: number;
+    day_of_month?: number;
+    description?: string;
+    type: 'circle' | 'savings_goal';
+    target_id: string; // circle_id or goal_id
+    target_name: string; // circle_name or goal_name
+  }): Promise<{
+    success: boolean;
+    recurring_transfer_id: string;
+    message: string;
+    amount: number;
+    error?: string;
+    plaid_error?: string;
+  }> {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch(`${this.baseUrl}/functions/v1/plaid-recurring-transfer`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify(transferData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to create recurring transfer: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error creating recurring transfer:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Cancel a recurring transfer
+   */
+  async cancelRecurringTransfer(transferData: {
+    recurring_transfer_id: string;
+    access_token: string;
+  }): Promise<{
+    success: boolean;
+    message: string;
+    error?: string;
+    plaid_error?: string;
+  }> {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch(`${this.baseUrl}/functions/v1/plaid-cancel-recurring-transfer`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify(transferData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to cancel recurring transfer: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error canceling recurring transfer:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Process a solo savings goal deposit
+   */
+  /**
+   * Process a one-time deposit for a savings goal
+   */
+  async processSoloDeposit(depositData: {
+    user_id: string;
+    goal_id: string;
+    amount: number;
+    account_id: string;
+    access_token: string;
+    description?: string;
+  }): Promise<{
+    success: boolean;
+    transaction_id: string;
+    message: string;
+    amount: number;
+    plaid_transfer_id?: string;
+    plaid_authorization_id?: string;
+    error?: string;
+    plaid_error?: string;
+  }> {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      // First, create a transfer authorization
+      const authResponse = await this.createTransferAuthorization({
+        access_token: depositData.access_token,
+        account_id: depositData.account_id,
+        type: 'debit',
+        amount: depositData.amount.toFixed(2),
+        ach_class: 'ppd',
+        user: {
+          // We'll get these from the edge function
+          legal_name: 'placeholder',
+          phone_number: 'placeholder',
+          email_address: 'placeholder',
+          address: {
+            street: 'placeholder',
+            city: 'placeholder',
+            state: 'placeholder',
+            zip: 'placeholder',
+            country: 'US',
+          },
+        },
+        device: {
+          user_agent: 'Savings App/1.0',
+          ip_address: '127.0.0.1',
+        },
+      });
+
+      if (!authResponse.success) {
+        throw new Error(authResponse.error || 'Transfer authorization failed');
+      }
+
+      // Then create the actual transfer
+      const transferResponse = await this.createTransfer({
+        access_token: depositData.access_token,
+        account_id: depositData.account_id,
+        authorization_id: authResponse.authorization_id,
+        type: 'debit',
+        amount: depositData.amount.toFixed(2),
+        description: depositData.description || 'Savings Goal Deposit',
+        ach_class: 'ppd',
+        user: {
+          // We'll get these from the edge function
+          legal_name: 'placeholder',
+          phone_number: 'placeholder',
+          email_address: 'placeholder',
+          address: {
+            street: 'placeholder',
+            city: 'placeholder',
+            state: 'placeholder',
+            zip: 'placeholder',
+            country: 'US',
+          },
+        },
+        device: {
+          user_agent: 'Savings App/1.0',
+          ip_address: '127.0.0.1',
+        },
+      });
+
+      if (!transferResponse.success) {
+        throw new Error(transferResponse.error || 'Transfer failed');
+      }
+
+      // Create transaction record
+      const { data: transaction, error: transactionError } = await supabase
+        .from('solo_savings_transactions')
+        .insert({
+          goal_id: depositData.goal_id,
+          user_id: depositData.user_id,
+          amount: depositData.amount,
+          type: 'manual_deposit',
+          status: 'processing',
+          transaction_date: new Date().toISOString(),
+          description: depositData.description || 'Manual Deposit',
+          plaid_transfer_id: transferResponse.transfer_id,
+          plaid_authorization_id: authResponse.authorization_id,
+        })
+        .select()
+        .single();
+
+      if (transactionError) {
+        throw transactionError;
+      }
+
+      return {
+        success: true,
+        transaction_id: transaction.id,
+        message: 'Deposit initiated successfully',
+        amount: depositData.amount,
+        plaid_transfer_id: transferResponse.transfer_id,
+        plaid_authorization_id: authResponse.authorization_id,
+      };
+    } catch (error) {
+      console.error('Error processing solo deposit:', error);
+      throw error;
+    }
+  }
 }
 
 export const plaidService = new PlaidService(); 

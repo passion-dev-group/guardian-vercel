@@ -273,9 +273,12 @@ export function RecurringContributionsManager() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="daily">Daily</SelectItem>
                     <SelectItem value="weekly">Weekly</SelectItem>
-                    <SelectItem value="biweekly">Bi-weekly</SelectItem>
+                    <SelectItem value="biweekly">Every 2 Weeks</SelectItem>
                     <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="quarterly">Every 3 Months</SelectItem>
+                    <SelectItem value="yearly">Yearly</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

@@ -1,0 +1,51 @@
+# Edge Functions Configuration
+
+[functions]
+[functions.plaid-recurring-transfer]
+verify_jwt = true
+max_retries = 3
+timeout_seconds = 30
+schedule = "@daily"
+
+[functions.process-circle-payment]
+verify_jwt = true
+max_retries = 3
+timeout_seconds = 30
+
+[functions.plaid-transfer]
+verify_jwt = true
+max_retries = 3
+timeout_seconds = 30
+
+[functions.plaid-transfer-authorization]
+verify_jwt = true
+max_retries = 3
+timeout_seconds = 30
+
+[functions.plaid-transfer-webhook]
+verify_jwt = false  # Webhooks don't have JWT
+max_retries = 3
+timeout_seconds = 30
+
+# Environment variables required by the functions
+[env]
+PLAID_CLIENT_ID = "required"
+PLAID_SECRET = "required"
+PLAID_ENV = "required"
+SUPABASE_URL = "required"
+SUPABASE_SERVICE_ROLE_KEY = "required"
+
+# Cron schedules for automated tasks
+[[cron]]
+name = "process-recurring-transfers"
+schedule = "@daily"
+function = "plaid-recurring-transfer"
+payload = { type = "recurring_transfer" }
+
+# Function descriptions
+[metadata]
+plaid-recurring-transfer = "Handles all recurring transfers for both circles and savings goals"
+process-circle-payment = "Handles one-time circle contributions"
+plaid-transfer = "Core Plaid transfer functionality"
+plaid-transfer-authorization = "Core Plaid authorization functionality"
+plaid-transfer-webhook = "Handles Plaid transfer webhooks"

@@ -217,7 +217,7 @@ export function useRecurringContributions() {
 
 // Helper function to calculate next contribution date
 function calculateNextContributionDate(
-  frequency: 'weekly' | 'biweekly' | 'monthly',
+  frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly',
   dayOfWeek?: number,
   dayOfMonth?: number
 ): Date {
@@ -225,6 +225,11 @@ function calculateNextContributionDate(
   const nextDate = new Date(now);
 
   switch (frequency) {
+    case 'daily':
+      // Set to tomorrow
+      nextDate.setDate(now.getDate() + 1);
+      break;
+
     case 'weekly':
       if (dayOfWeek !== undefined) {
         // Set to next occurrence of the specified day of week
@@ -260,6 +265,36 @@ function calculateNextContributionDate(
       } else {
         // Default to next month
         nextDate.setMonth(now.getMonth() + 1);
+      }
+      break;
+
+    case 'quarterly':
+      if (dayOfMonth !== undefined) {
+        // Set to next occurrence of the specified day in 3 months
+        nextDate.setDate(dayOfMonth);
+        nextDate.setMonth(now.getMonth() + 3);
+        if (nextDate <= now) {
+          // If this quarter's date has passed, move to next quarter
+          nextDate.setMonth(nextDate.getMonth() + 3);
+        }
+      } else {
+        // Default to 3 months from now
+        nextDate.setMonth(now.getMonth() + 3);
+      }
+      break;
+
+    case 'yearly':
+      if (dayOfMonth !== undefined) {
+        // Set to next occurrence of the specified day next year
+        nextDate.setDate(dayOfMonth);
+        nextDate.setFullYear(now.getFullYear() + 1);
+        if (nextDate <= now) {
+          // If this year's date has passed, move to next year
+          nextDate.setFullYear(nextDate.getFullYear() + 1);
+        }
+      } else {
+        // Default to next year
+        nextDate.setFullYear(now.getFullYear() + 1);
       }
       break;
   }

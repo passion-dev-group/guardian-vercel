@@ -10,7 +10,7 @@ interface SoloSavingsRecurringContribution {
   user_id: string;
   goal_id: string;
   amount: number;
-  frequency: 'weekly' | 'biweekly' | 'monthly';
+  frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly';
   day_of_week?: number; // 0-6 (Sunday-Saturday)
   day_of_month?: number; // 1-31
   is_active: boolean;
@@ -22,7 +22,7 @@ interface SoloSavingsRecurringContribution {
 interface CreateRecurringContributionParams {
   goal_id: string;
   amount: number;
-  frequency: 'weekly' | 'biweekly' | 'monthly';
+  frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly';
   day_of_week?: number;
   day_of_month?: number;
 }
@@ -271,7 +271,7 @@ export const useSoloSavingsRecurringContributions = (goalId?: string) => {
 
 // Helper function to calculate next contribution date
 function calculateNextContributionDate(
-  frequency: 'weekly' | 'biweekly' | 'monthly',
+  frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly',
   dayOfWeek?: number,
   dayOfMonth?: number
 ): Date {
@@ -279,6 +279,11 @@ function calculateNextContributionDate(
   const nextDate = new Date(now);
 
   switch (frequency) {
+    case 'daily':
+      // Set to tomorrow
+      nextDate.setDate(now.getDate() + 1);
+      break;
+
     case 'weekly':
       if (dayOfWeek !== undefined) {
         const currentDay = now.getDay();
@@ -307,6 +312,36 @@ function calculateNextContributionDate(
         }
       } else {
         nextDate.setMonth(now.getMonth() + 1);
+      }
+      break;
+
+    case 'quarterly':
+      if (dayOfMonth !== undefined) {
+        // Set to next occurrence of the specified day in 3 months
+        nextDate.setDate(dayOfMonth);
+        nextDate.setMonth(now.getMonth() + 3);
+        if (nextDate <= now) {
+          // If this quarter's date has passed, move to next quarter
+          nextDate.setMonth(nextDate.getMonth() + 3);
+        }
+      } else {
+        // Default to 3 months from now
+        nextDate.setMonth(now.getMonth() + 3);
+      }
+      break;
+
+    case 'yearly':
+      if (dayOfMonth !== undefined) {
+        // Set to next occurrence of the specified day next year
+        nextDate.setDate(dayOfMonth);
+        nextDate.setFullYear(now.getFullYear() + 1);
+        if (nextDate <= now) {
+          // If this year's date has passed, move to next year
+          nextDate.setFullYear(nextDate.getFullYear() + 1);
+        }
+      } else {
+        // Default to next year
+        nextDate.setFullYear(now.getFullYear() + 1);
       }
       break;
   }

@@ -31,7 +31,7 @@ export default function GoalCard({
   const { updateGoal } = useSavingsGoals();
   const { transfers, getEstimatedCompletionDate } = useAutomatedTransfers(id);
   
-  // Calculate percentage complete
+  // Calculate p ercentage complete
   const percentComplete = (currentAmount / targetAmount) * 100;
   const formattedPercent = Math.min(100, Math.round(percentComplete));
 

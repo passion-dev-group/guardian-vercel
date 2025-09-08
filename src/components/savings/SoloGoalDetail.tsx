@@ -1,17 +1,21 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useSoloSavingsGoals } from '@/hooks/useSoloSavingsGoals';
 import { useSoloDailyAllocations } from '@/hooks/useSoloDailyAllocations';
+import { useSoloSavingsTransactions } from '@/hooks/useSoloSavingsTransactions';
 import { toast } from 'sonner';
 import { trackEvent } from '@/lib/analytics';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { ArrowLeft } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { ArrowLeft, Save, X } from 'lucide-react';
+import TransactionHistory from './TransactionHistory';
+import { DepositDialog } from './DepositDialog';
 
 interface SoloGoalDetailProps {
   goalId: string;
@@ -19,12 +23,18 @@ interface SoloGoalDetailProps {
 
 export default function SoloGoalDetail({ goalId }: SoloGoalDetailProps) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { updateGoal, addManualDeposit, isUpdating } = useSoloSavingsGoals();
   const { allocation, isRefreshing, refreshAllocation } = useSoloDailyAllocations(goalId);
   
-  const [depositAmount, setDepositAmount] = useState<string>('25');
   const [isDepositDialogOpen, setIsDepositDialogOpen] = useState(false);
   const [targetDate, setTargetDate] = useState<Date | undefined>(undefined);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedGoal, setEditedGoal] = useState<{
+    name: string;
+    target_amount: number;
+    target_date: string;
+  } | null>(null);
   
   // Fetch goal details
   const { data: goal, isLoading, error } = useQuery({
@@ -48,6 +58,11 @@ export default function SoloGoalDetail({ goalId }: SoloGoalDetailProps) {
         
         if (data && data.target_date) {
           setTargetDate(new Date(data.target_date));
+          setEditedGoal({
+            name: data.name,
+            target_amount: data.target_amount,
+            target_date: data.target_date,
+          });
         }
         
         return data;
@@ -75,6 +90,12 @@ export default function SoloGoalDetail({ goalId }: SoloGoalDetailProps) {
   const handleToggleStatus = async () => {
     if (!goal || !goalId) return;
     
+    // Optimistically update the UI
+    queryClient.setQueryData(['soloSavingsGoal', goalId], {
+      ...goal,
+      daily_transfer_enabled: !goal.daily_transfer_enabled
+    });
+    
     try {
       await updateGoal({
         id: goalId,
@@ -87,35 +108,13 @@ export default function SoloGoalDetail({ goalId }: SoloGoalDetailProps) {
         toast.success('Goal has been resumed');
       }
     } catch (error) {
+      // Revert optimistic update on error
+      queryClient.setQueryData(['soloSavingsGoal', goalId], goal);
       console.error('Error toggling goal status:', error);
       toast.error('Failed to update goal status');
     }
   };
   
-  // Handle adding a manual deposit
-  const handleAddDeposit = async () => {
-    if (!goalId) return;
-    
-    const amount = parseFloat(depositAmount);
-    if (isNaN(amount) || amount <= 0) {
-      toast.error('Please enter a valid amount');
-      return;
-    }
-    
-    try {
-      await addManualDeposit({
-        goalId,
-        amount
-      });
-      
-      setIsDepositDialogOpen(false);
-      setDepositAmount('25'); // Reset to default
-      toast.success(`Added ${formatCurrency(amount)} to your goal`);
-    } catch (error) {
-      console.error('Error adding deposit:', error);
-      toast.error('Failed to add deposit');
-    }
-  };
   
   // Loading state
   if (isLoading) {
@@ -171,8 +170,9 @@ export default function SoloGoalDetail({ goalId }: SoloGoalDetailProps) {
       
       <div className="grid gap-6 md:grid-cols-2">
         {/* Progress Card */}
-        <Card className="p-6">
-          <h2 className="font-semibold mb-4">Progress</h2>
+        <div className="space-y-6">
+          <Card className="p-6">
+            <h2 className="font-semibold mb-4">Progress</h2>
           
           <div className="flex justify-between text-sm mb-2">
             <span>{formatCurrency(goal.current_amount)}</span>
@@ -219,6 +219,10 @@ export default function SoloGoalDetail({ goalId }: SoloGoalDetailProps) {
             </div>
           )}
         </Card>
+
+        {/* Transaction History */}
+        <TransactionHistory goalId={goalId} />
+        </div>
         
         {/* Goal Details */}
         <Card className="p-6">
@@ -227,18 +231,50 @@ export default function SoloGoalDetail({ goalId }: SoloGoalDetailProps) {
           <div className="space-y-4">
             <div>
               <h3 className="text-sm font-medium text-muted-foreground">Goal Name</h3>
-              <p>{goal.name}</p>
+              {isEditing ? (
+                <Input
+                  value={editedGoal?.name}
+                  onChange={(e) => setEditedGoal(prev => prev ? { ...prev, name: e.target.value } : null)}
+                  className="mt-1"
+                />
+              ) : (
+                <p>{goal.name}</p>
+              )}
             </div>
             
             <div>
               <h3 className="text-sm font-medium text-muted-foreground">Target Amount</h3>
-              <p>{formatCurrency(goal.target_amount)}</p>
+              {isEditing ? (
+                <div className="relative mt-1">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
+                    $
+                  </span>
+                  <Input
+                    type="number"
+                    value={editedGoal?.target_amount}
+                    onChange={(e) => setEditedGoal(prev => prev ? { ...prev, target_amount: parseFloat(e.target.value) } : null)}
+                    className="pl-8"
+                    min="1"
+                  />
+                </div>
+              ) : (
+                <p>{formatCurrency(goal.target_amount)}</p>
+              )}
             </div>
             
-            {goal.target_date && (
+            {(goal.target_date || isEditing) && (
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground">Target Date</h3>
-                <p>{format(new Date(goal.target_date), 'MMMM d, yyyy')}</p>
+                {isEditing ? (
+                  <Input
+                    type="date"
+                    value={editedGoal?.target_date ? editedGoal.target_date.split('T')[0] : ''}
+                    onChange={(e) => setEditedGoal(prev => prev ? { ...prev, target_date: e.target.value } : null)}
+                    className="mt-1"
+                  />
+                ) : (
+                  <p>{format(new Date(goal.target_date), 'MMMM d, yyyy')}</p>
+                )}
               </div>
             )}
             
@@ -258,65 +294,83 @@ export default function SoloGoalDetail({ goalId }: SoloGoalDetailProps) {
           <Separator className="my-6" />
           
           <div className="flex gap-2">
-            <Button 
-              variant="outline"
-              className="flex-1" 
-              onClick={() => navigate(`/savings-goals/edit/${goal.id}`)}
-            >
-              Edit Goal
-            </Button>
-            <Button 
-              variant="destructive" 
-              className="flex-1"
-              onClick={handleAddDeposit}
-            >
-              Delete
-            </Button>
+            {isEditing ? (
+              <>
+                <Button 
+                  variant="outline"
+                  className="flex-1" 
+                  onClick={() => {
+                    setIsEditing(false);
+                    setEditedGoal({
+                      name: goal.name,
+                      target_amount: goal.target_amount,
+                      target_date: goal.target_date,
+                    });
+                  }}
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Cancel
+                </Button>
+                <Button 
+                  className="flex-1"
+                  onClick={async () => {
+                    if (!editedGoal) return;
+                    
+                    try {
+                      await updateGoal({
+                        id: goalId,
+                        ...editedGoal
+                      });
+                      
+                      setIsEditing(false);
+                      toast.success('Goal updated successfully');
+                    } catch (error) {
+                      console.error('Error updating goal:', error);
+                      toast.error('Failed to update goal');
+                    }
+                  }}
+                  disabled={isUpdating}
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  Save Changes
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button 
+                  variant="outline"
+                  className="flex-1" 
+                  onClick={() => setIsEditing(true)}
+                >
+                  Edit Goal
+                </Button>
+                <Button 
+                  variant="destructive" 
+                  className="flex-1"
+                  onClick={() => {
+                    // TODO: Implement delete functionality
+                    toast.error("Delete functionality not yet implemented");
+                  }}
+                >
+                  Delete
+                </Button>
+              </>
+            )}
           </div>
         </Card>
       </div>
       
       {/* Deposit Dialog */}
-      {isDepositDialogOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <Card className="w-full max-w-md p-6">
-            <h2 className="text-xl font-semibold mb-4">Add Deposit</h2>
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="amount" className="text-sm font-medium">
-                  Amount
-                </label>
-                <div className="relative mt-1">
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
-                    $
-                  </span>
-                  <input
-                    type="number"
-                    id="amount"
-                    value={depositAmount}
-                    onChange={(e) => setDepositAmount(e.target.value)}
-                    className="block w-full pl-8 pr-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary"
-                    placeholder="0.00"
-                    min="1"
-                  />
-                </div>
-              </div>
-              
-              <div className="flex justify-end gap-2 mt-4">
-                <Button 
-                  variant="outline" 
-                  onClick={() => setIsDepositDialogOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button onClick={handleAddDeposit}>
-                  Add Deposit
-                </Button>
-              </div>
-            </div>
-          </Card>
-        </div>
-      )}
+      <DepositDialog
+        goalId={goalId}
+        goalName={goal.name}
+        isOpen={isDepositDialogOpen}
+        onOpenChange={setIsDepositDialogOpen}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['soloSavingsGoal', goalId] });
+          queryClient.invalidateQueries({ queryKey: ['soloSavingsTransactions', goalId] });
+        }}
+      />
     </div>
   );
 }

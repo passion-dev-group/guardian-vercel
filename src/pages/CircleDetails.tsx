@@ -19,6 +19,7 @@ import CircleStatsWidget from "@/components/circle-details/CircleStatsWidget";
 import CircleAnalyticsWidget from "@/components/circle-details/CircleAnalyticsWidget";
 import StartCircleButton from "@/components/circle-details/StartCircleButton";
 import PayoutTimeline from "@/components/circle-details/PayoutTimeline";
+import { RecurringTransferStatus } from "@/components/circle-details/RecurringTransferStatus";
 
 const CircleDetails = () => {
   const { circleId } = useParams<{ circleId: string }>();
@@ -199,7 +200,13 @@ const CircleDetails = () => {
             
             <section aria-labelledby="schedule-heading">
               <h2 id="schedule-heading" className="text-xl font-semibold mb-4">Contribution Schedule</h2>
-              <ContributionSchedule circleId={circleId} />
+              <div className="space-y-4">
+                <RecurringTransferStatus 
+                  circleId={circleId!}
+                  circleName={circle.name}
+                />
+                <ContributionSchedule circleId={circleId} />
+              </div>
             </section>
             
             <section aria-labelledby="actions-heading">
