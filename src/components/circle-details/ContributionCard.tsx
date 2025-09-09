@@ -3,15 +3,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useCircleContributions } from "@/hooks/useCircleContributions";
+import { useContributionLimit } from "@/hooks/useContributionLimit";
 import { ContributionDialog } from "./ContributionDialog";
 import { formatCurrency, formatDateRelative } from "@/lib/utils";
 import { DollarSign, Calendar, AlertCircle, CheckCircle } from "lucide-react";
+import { FrequencyType } from "@/types/frequency";
 
 interface ContributionCardProps {
   circleId: string;
   circleName: string;
   contributionAmount: number;
-  frequency: string;
+  frequency: FrequencyType;
 }
 
 export function ContributionCard({
@@ -22,6 +24,7 @@ export function ContributionCard({
 }: ContributionCardProps) {
   const [contributionDialogOpen, setContributionDialogOpen] = useState(false);
   const { contributionStatus, contributions, loading } = useCircleContributions(circleId);
+  const contributionLimitStatus = useContributionLimit(circleId);
 
   const getStatusBadge = () => {
     if (contributionStatus.isOverdue) {
@@ -152,13 +155,30 @@ export function ContributionCard({
             </div>
           )}
 
+          {/* Contribution Status Warning */}
+          {contributionLimitStatus.blockingReason && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg mt-3">
+              <div className="flex items-center gap-2 text-amber-800">
+                <AlertCircle className="h-4 w-4" />
+                <p className="text-sm">{contributionLimitStatus.blockingReason}</p>
+              </div>
+            </div>
+          )}
+
           {/* Action Button */}
           <Button 
             className="w-full mt-4" 
             onClick={() => setContributionDialogOpen(true)}
+            disabled={!contributionLimitStatus.canContribute || contributionLimitStatus.isLoading}
             variant={contributionStatus.isOverdue ? "destructive" : "default"}
           >
-            {contributionStatus.isOverdue ? "Make Overdue Contribution" : "Make Contribution"}
+            {contributionLimitStatus.hasProcessingContribution 
+              ? "Processing Contribution..." 
+              : contributionStatus.isOverdue 
+                ? "Make Overdue Contribution" 
+                : contributionLimitStatus.canContribute 
+                  ? "Make Contribution"
+                  : "Cannot Contribute"}
           </Button>
         </CardContent>
       </Card>

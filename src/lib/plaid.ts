@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { FrequencyType } from '@/types/frequency';
 import type { 
   PlaidLinkTokenResponse, 
   PlaidAccessTokenResponse, 
@@ -412,7 +413,7 @@ class PlaidService {
     amount: number;
     account_id: string;
     access_token: string;
-    frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly';
+    frequency: FrequencyType;
     day_of_week?: number;
     day_of_month?: number;
     description?: string;
@@ -456,11 +457,17 @@ class PlaidService {
   async cancelRecurringTransfer(transferData: {
     recurring_transfer_id: string;
     access_token: string;
+    user_id?: string;
+    type?: string;
+    target_id?: string;
   }): Promise<{
     success: boolean;
     message: string;
     error?: string;
     plaid_error?: string;
+    plaid_cancelled?: boolean;
+    database_deleted?: boolean;
+    transfer_id?: string;
   }> {
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -478,7 +485,12 @@ class PlaidService {
         throw new Error(errorData.error || `Failed to cancel recurring transfer: ${response.statusText}`);
       }
 
-      return await response.json();
+      const result = await response.json();
+      
+      // Log the result for debugging
+      console.log('Plaid cancellation result:', result);
+      
+      return result;
     } catch (error) {
       console.error('Error canceling recurring transfer:', error);
       throw error;

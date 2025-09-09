@@ -67,18 +67,5 @@ COMMENT ON COLUMN solo_savings_recurring_contributions.day_of_week IS 'Day of we
 COMMENT ON COLUMN solo_savings_recurring_contributions.day_of_month IS 'Day of month (1-31) for monthly/quarterly/yearly contributions';
 COMMENT ON COLUMN solo_savings_recurring_contributions.plaid_recurring_transfer_id IS 'ID of the recurring transfer in Plaid';
 
--- Update function invocation permissions
-DO $$ 
-BEGIN
-  GRANT EXECUTE ON FUNCTION supabase_functions.http_request('plaid-recurring-transfer') TO authenticated;
-  GRANT EXECUTE ON FUNCTION supabase_functions.http_request('plaid-recurring-transfer') TO service_role;
-
-  GRANT EXECUTE ON FUNCTION supabase_functions.http_request('process-circle-payment') TO authenticated;
-  GRANT EXECUTE ON FUNCTION supabase_functions.http_request('process-circle-payment') TO service_role;
-EXCEPTION
-  WHEN undefined_object THEN NULL;
-END $$;
-
--- Add function descriptions to metadata
-COMMENT ON FUNCTION supabase_functions.http_request('plaid-recurring-transfer') IS 'Handles all recurring transfers for both circles and savings goals';
-COMMENT ON FUNCTION supabase_functions.http_request('process-circle-payment') IS 'Handles one-time circle contributions';
+-- Note: Edge Functions permissions are handled automatically by Supabase
+-- This migration focuses on the database schema changes only

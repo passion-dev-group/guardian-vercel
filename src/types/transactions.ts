@@ -1,3 +1,5 @@
+import { FrequencyType } from './frequency';
+
 export interface Transaction {
   id: string;
   circle_id: string;
@@ -17,7 +19,7 @@ export interface TransactionWithDetails extends Transaction {
     id: string;
     name: string;
     contribution_amount: number;
-    frequency: string;
+    frequency: FrequencyType;
   };
   user: {
     id: string;
@@ -57,7 +59,7 @@ export interface RecurringContribution {
   user_id: string;
   circle_id: string;
   amount: number;
-  frequency: 'weekly' | 'biweekly' | 'monthly';
+  frequency: FrequencyType;
   day_of_week?: number; // 0-6 (Sunday-Saturday)
   day_of_month?: number; // 1-31
   is_active: boolean;
@@ -71,7 +73,7 @@ export interface RecurringContributionWithDetails extends RecurringContribution 
     id: string;
     name: string;
     contribution_amount: number;
-    frequency: string;
+    frequency: FrequencyType;
   };
   user: {
     id: string;
@@ -86,14 +88,14 @@ export interface RecurringContributionWithDetails extends RecurringContribution 
 export interface CreateRecurringContributionData {
   circle_id: string;
   amount: number;
-  frequency: 'weekly' | 'biweekly' | 'monthly';
+  frequency: FrequencyType;
   day_of_week?: number;
   day_of_month?: number;
 }
 
 export interface UpdateRecurringContributionData {
   amount?: number;
-  frequency?: 'weekly' | 'biweekly' | 'monthly';
+  frequency?: FrequencyType;
   day_of_week?: number;
   day_of_month?: number;
   is_active?: boolean;

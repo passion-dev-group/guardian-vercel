@@ -17,7 +17,7 @@ const formSchema = z.object({
   amount: z.coerce.number().positive({
     message: "Contribution amount must be greater than 0.",
   }),
-  frequency: z.enum(["biweekly", "monthly", "quarterly", "annual"], {
+  frequency: z.enum(["weekly", "biweekly", "monthly", "quarterly", "yearly"], {
     required_error: "Please select a contribution frequency.",
   }),
   startDate: z.string().optional(),

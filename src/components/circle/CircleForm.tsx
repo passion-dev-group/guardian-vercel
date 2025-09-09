@@ -20,7 +20,6 @@ import { ArrowLeft, Users } from "lucide-react";
 import { ContactsPicker } from "@/components/contacts/ContactsPicker";
 import { useNavigate } from "react-router-dom";
 import EnhancedMemberInvitation from "./EnhancedMemberInvitation";
-import { useEnhancedInvites } from "@/hooks/useEnhancedInvites";
 
 interface CircleFormProps {
   form: UseFormReturn<CircleFormValues>;
@@ -50,16 +49,7 @@ const CircleForm = ({
   handleTermsDecline,
 }: CircleFormProps) => {
   const navigate = useNavigate();
-  const circleName = form.watch("name");
-  const circleAmount = form.watch("amount");
 
-  const {
-    members: enhancedMembers,
-    addMember: addEnhancedMember,
-    removeMember: removeEnhancedMember,
-    sendInvites
-  } = useEnhancedInvites(undefined, circleName);
-  
   const handleCancel = () => {
     navigate(-1);
   };
@@ -139,10 +129,11 @@ const CircleForm = ({
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
+                <SelectItem value="weekly">Weekly</SelectItem>
                   <SelectItem value="biweekly">Bi-weekly</SelectItem>
                   <SelectItem value="monthly">Monthly</SelectItem>
                   <SelectItem value="quarterly">Quarterly</SelectItem>
-                  <SelectItem value="annual">Annual</SelectItem>
+                  <SelectItem value="yearly">Yearly</SelectItem>
                 </SelectContent>
               </Select>
               <FormDescription>

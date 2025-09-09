@@ -20,6 +20,7 @@ import {
   TrendingUp
 } from "lucide-react";
 import { useRealPaymentProcessing } from "@/hooks/useRealPaymentProcessing";
+import { useContributionLimit } from "@/hooks/useContributionLimit";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { formatCurrency } from "@/lib/utils";
@@ -49,6 +50,7 @@ const RealPaymentProcessor = ({
   isAdmin 
 }: RealPaymentProcessorProps) => {
   const { user } = useAuth();
+  const contributionStatus = useContributionLimit(circleId);
   const [linkedAccounts, setLinkedAccounts] = useState<LinkedAccount[]>([]);
   const [selectedAccount, setSelectedAccount] = useState<string>("");
   const [customAmount, setCustomAmount] = useState<number>(contributionAmount);
@@ -118,7 +120,14 @@ const RealPaymentProcessor = ({
 
     try {
       if (paymentType === "contribution") {
-        await processContribution(params);
+        const result = await processContribution(params);
+        
+        // If contribution was successful, trigger a refresh of contribution status
+        if (result) {
+          window.dispatchEvent(new CustomEvent('contribution-completed', {
+            detail: { circleId, type: 'circle' }
+          }));
+        }
       } else {
         await processPayout(params);
       }
@@ -137,7 +146,8 @@ const RealPaymentProcessor = ({
   };
 
   const selectedAccountData = linkedAccounts.find(acc => acc.id === selectedAccount);
-  const canProcessPayment = selectedAccount && customAmount > 0 && !isProcessing;
+  const canProcessPayment = selectedAccount && customAmount > 0 && !isProcessing && 
+    (paymentType === "payout" || contributionStatus.canContribute);
 
   if (loading) {
     return (
@@ -286,6 +296,16 @@ const RealPaymentProcessor = ({
           </div>
         </div>
 
+        {/* Contribution Status Warning */}
+        {paymentType === "contribution" && contributionStatus.blockingReason && (
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="flex items-center gap-2 text-amber-800">
+              <AlertTriangle className="h-4 w-4" />
+              <p className="text-sm">{contributionStatus.blockingReason}</p>
+            </div>
+          </div>
+        )}
+
         {/* Payment Button */}
         <Button 
           onClick={handlePayment}
@@ -300,7 +320,13 @@ const RealPaymentProcessor = ({
             </>
           ) : (
             <>
-              {paymentType === "contribution" ? "Make Contribution" : "Process Payout"}
+              {paymentType === "contribution" && contributionStatus.hasProcessingContribution
+                ? "Processing Contribution..."
+                : paymentType === "contribution" && !contributionStatus.canContribute
+                  ? "Cannot Contribute"
+                  : paymentType === "contribution" 
+                    ? "Make Contribution" 
+                    : "Process Payout"}
               <ArrowRight className="h-4 w-4 ml-2" />
             </>
           )}

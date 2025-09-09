@@ -20,12 +20,13 @@ import { PaymentNotificationService } from "@/lib/notifications";
 import { useLinkedBankAccounts } from "@/hooks/useLinkedBankAccounts";
 import { useContributionLimit } from "@/hooks/useContributionLimit";
 import { DollarSign, Calendar, Users, CreditCard, AlertCircle, Clock } from "lucide-react";
+import { FrequencyType } from "@/types/frequency";
 
 interface ContributionDialogProps {
   circleId: string;
   circleName: string;
   contributionAmount: number;
-  frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly';
+  frequency: FrequencyType;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -41,13 +42,13 @@ export function ContributionDialog({
   const { user } = useAuth();
   const { toast } = useToast();
   const { accounts, loading: accountsLoading } = useLinkedBankAccounts();
-  const { 
-    canContribute, 
-    nextAllowedDate, 
-    daysUntilNextContribution, 
+  const {
+    canContribute,
+    nextAllowedDate,
+    daysUntilNextContribution,
     contributionsThisCycle,
     isLoading: contributionLimitLoading,
-    error: contributionLimitError 
+    error: contributionLimitError
   } = useContributionLimit(circleId);
   const [isProcessing, setIsProcessing] = useState(false);
   const [customAmount, setCustomAmount] = useState(contributionAmount.toString());
@@ -65,7 +66,7 @@ export function ContributionDialog({
     }
 
     const amount = useCustomAmount ? parseFloat(customAmount) : contributionAmount;
-    
+
     if (isNaN(amount) || amount <= 0) {
       toast({
         title: "Invalid Amount",
@@ -128,7 +129,7 @@ export function ContributionDialog({
 
         // Close the dialog
         onOpenChange(false);
-        
+
         // Reset form
         setCustomAmount(contributionAmount.toString());
         setUseCustomAmount(false);
@@ -139,7 +140,7 @@ export function ContributionDialog({
 
     } catch (error) {
       console.error("Error making contribution:", error);
-      
+
       // Show error notification
       toast({
         title: "❌ Failed to Set Up Recurring Contribution",
@@ -155,7 +156,7 @@ export function ContributionDialog({
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setCustomAmount(value);
-    
+
     // Auto-switch to custom amount if user types something different
     if (value !== contributionAmount.toString()) {
       setUseCustomAmount(true);
@@ -185,11 +186,13 @@ export function ContributionDialog({
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">Frequency:</span>
               <span className="text-sm">
-                {frequency === 'biweekly' ? 'Every 2 weeks' :
-                 frequency === 'quarterly' ? 'Every 3 months' :
-                 frequency === 'yearly' ? 'Yearly' :
-                 frequency === 'daily' ? 'Daily' :
-                 `${frequency.charAt(0).toUpperCase()}${frequency.slice(1)}ly`}
+                {
+                  frequency === 'weekly' ? 'Weekly' :
+                  frequency === 'biweekly' ? 'Every 2 weeks' :
+                    frequency === 'quarterly' ? 'Every 3 months' :
+                      frequency === 'yearly' ? 'Yearly' :
+                        frequency === 'daily' ? 'Daily' :
+                          `${frequency?.charAt(0).toUpperCase()}${frequency?.slice(1)}ly`}
               </span>
             </div>
             <div className="flex items-center justify-between">
@@ -243,7 +246,7 @@ export function ContributionDialog({
           {/* Contribution Amount */}
           <div className="space-y-3">
             <Label htmlFor="contribution-amount">Contribution Amount</Label>
-            
+
             <div className="space-y-2">
               <div className="flex items-center space-x-2">
                 <input
@@ -258,7 +261,7 @@ export function ContributionDialog({
                   Standard Amount ({formatCurrency(contributionAmount)})
                 </Label>
               </div>
-              
+
               {/* <div className="flex items-center space-x-2">
                 <input
                   type="radio"
@@ -294,7 +297,7 @@ export function ContributionDialog({
           {/* Bank Account Selection */}
           <div className="space-y-3">
             <Label htmlFor="bank-account">Select Bank Account</Label>
-            
+
             {accountsLoading ? (
               <div className="animate-pulse">
                 <div className="h-10 bg-muted rounded-md"></div>
@@ -353,10 +356,10 @@ export function ContributionDialog({
             disabled={isProcessing || accounts.length === 0 || !canContribute || contributionLimitLoading}
             className="min-w-[120px]"
           >
-            {isProcessing ? "Processing..." : 
-             contributionLimitLoading ? "Checking..." :
-             !canContribute ? "Already Contributed" : 
-             "Contribute"}
+            {isProcessing ? "Processing..." :
+              contributionLimitLoading ? "Checking..." :
+                !canContribute ? "Already Contributed" :
+                  "Contribute"}
           </Button>
         </div>
       </DialogContent>

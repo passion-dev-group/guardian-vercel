@@ -13,14 +13,16 @@ import { useToast } from "@/components/ui/use-toast";
 import { trackEvent } from "@/lib/analytics";
 import { copyToClipboard } from "@/lib/utils";
 import { ContributionDialog } from "./ContributionDialog";
-import { DollarSign, CreditCard } from "lucide-react";
+import { DollarSign, CreditCard, AlertCircle } from "lucide-react";
+import { FrequencyType } from "@/types/frequency";
+import { useContributionLimit } from "@/hooks/useContributionLimit";
 
 interface CircleActionsPanelProps {
   circleId: string | undefined;
   isAdmin: boolean;
   circleName?: string;
   contributionAmount?: number;
-  frequency?: string;
+  frequency?: FrequencyType;
 }
 
 const CircleActionsPanel = ({ 
@@ -36,6 +38,9 @@ const CircleActionsPanel = ({
   const [isGeneratingInvite, setIsGeneratingInvite] = useState(false);
   const [isCirclePaused, setIsCirclePaused] = useState(false);
   const { toast } = useToast();
+  
+  // Get contribution limit status
+  const contributionStatus = useContributionLimit(circleId);
 
   const generateInviteLink = async () => {
     if (!circleId) return;
@@ -127,12 +132,27 @@ const CircleActionsPanel = ({
   return (
     <>
       <div className="space-y-3">
+        {/* Contribution Status Warning */}
+        {contributionStatus.blockingReason && (
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="flex items-center gap-2 text-amber-800">
+              <AlertCircle className="h-4 w-4" />
+              <p className="text-sm">{contributionStatus.blockingReason}</p>
+            </div>
+          </div>
+        )}
+
         <Button 
           className="w-full"
           onClick={() => setContributionDialogOpen(true)}
+          disabled={!contributionStatus.canContribute || contributionStatus.isLoading}
         >
           <DollarSign className="mr-2 h-4 w-4" />
-          Make Contribution
+          {contributionStatus.hasProcessingContribution 
+            ? "Processing Contribution..." 
+            : contributionStatus.canContribute 
+              ? "Make Contribution" 
+              : "Cannot Contribute"}
         </Button>
         
         {isAdmin && (
@@ -205,7 +225,7 @@ const CircleActionsPanel = ({
           circleId={circleId!}
           circleName={circleName}
           contributionAmount={contributionAmount}
-          frequency={frequency}
+          frequency={frequency as FrequencyType}
           isOpen={contributionDialogOpen}
           onOpenChange={setContributionDialogOpen}
         />

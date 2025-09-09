@@ -8,6 +8,8 @@ import { trackEvent } from "@/lib/analytics";
 import { InfoIcon, DollarSign, Users, Calendar, TrendingUp } from "lucide-react";
 import TermsAndConditionsDialog from "../circle/TermsAndConditionsDialog";
 import { ContributionDialog } from "../circle-details/ContributionDialog";
+import { useContributionLimit } from "@/hooks/useContributionLimit";
+import { FrequencyType } from "@/types/frequency";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 
@@ -15,7 +17,7 @@ interface CircleCardProps {
   id: string;
   name: string;
   contributionAmount: number;
-  frequency: string;
+  frequency: FrequencyType;
   memberCount: number;
   nextPayoutDate: Date | null;
   isYourTurn: boolean;
@@ -41,6 +43,7 @@ const CircleCard = ({
 }: CircleCardProps) => {
   const [contributionDialogOpen, setContributionDialogOpen] = useState(false);
   const [stats, setStats] = useState<CircleStats | null>(null);
+  const contributionLimitStatus = useContributionLimit(id);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -117,7 +120,7 @@ const CircleCard = ({
         setStats({
           totalContributions: totalContributions?.reduce((sum, t) => sum + t.amount, 0) || 0,
           nextPayoutDate: nextPayoutData?.next_payout_date || null,
-          nextPayoutMember: nextPayoutData?.profiles?.display_name || null,
+          nextPayoutMember: (nextPayoutData?.profiles as any)?.display_name || null,
           isYourTurn,
           contributionStatus,
           lastContributionDate
@@ -243,10 +246,20 @@ const CircleCard = ({
             size="sm" 
             onClick={handleQuickContribute}
             className="flex items-center gap-1"
-            disabled={stats?.contributionStatus === "up_to_date"}
+            disabled={
+              stats?.contributionStatus === "up_to_date" || 
+              !contributionLimitStatus.canContribute ||
+              contributionLimitStatus.isLoading
+            }
           >
             <DollarSign className="h-3 w-3" />
-            {stats?.contributionStatus === "up_to_date" ? "Up to Date" : "Contribute"}
+            {contributionLimitStatus.hasProcessingContribution 
+              ? "Processing..." 
+              : stats?.contributionStatus === "up_to_date" 
+                ? "Up to Date" 
+                : contributionLimitStatus.canContribute
+                  ? "Contribute"
+                  : "Cannot Contribute"}
           </Button>
         </div>
         <div className="w-full flex justify-end">
@@ -262,11 +275,12 @@ const CircleCard = ({
       </CardFooter>
 
       <ContributionDialog
-        open={contributionDialogOpen}
+        isOpen={contributionDialogOpen}
         onOpenChange={setContributionDialogOpen}
         circleId={id}
         circleName={name}
         contributionAmount={contributionAmount}
+        frequency={frequency}
       />
     </Card>
   );

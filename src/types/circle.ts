@@ -1,4 +1,6 @@
 
+import { FrequencyType } from './frequency';
+
 export interface MemberProfile {
   display_name: string | null;
   avatar_url: string | null;
@@ -26,7 +28,7 @@ export interface Circle {
   id: string;
   name: string;
   contribution_amount: number;
-  frequency: string;
+  frequency: FrequencyType;
   created_at: string;
   created_by: string;
   status?: string; // Adding the status field that was missing
