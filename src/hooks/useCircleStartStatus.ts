@@ -47,6 +47,17 @@ export const useCircleStartStatus = (circleId: string | undefined) => {
 
 
 
+        // Get circle details including min_members
+        const { data: circleDetails, error: circleDetailsError } = await supabase
+          .from('circles')
+          .select('min_members')
+          .eq('id', circleId)
+          .single();
+
+        if (circleDetailsError) {
+          throw circleDetailsError;
+        }
+
         // Get total number of circle members
         const { data: members, error: membersError } = await supabase
           .from('circle_members')
@@ -59,29 +70,30 @@ export const useCircleStartStatus = (circleId: string | undefined) => {
 
         const totalMembers = members?.length || 0;
 
-        // Get unique members who have made at least one completed contribution
-        const { data: contributions, error: contributionsError } = await supabase
-          .from('circle_transactions')
+        // Get members who have authorized ACH recurring contributions
+        const { data: authorizedMembers, error: authorizedError } = await supabase
+          .from('circle_ach_authorizations')
           .select('user_id')
           .eq('circle_id', circleId)
-          .eq('type', 'contribution')
-          .eq('status', 'completed');
+          .eq('status', 'authorized');
 
-        if (contributionsError) {
-          throw contributionsError;
+        if (authorizedError) {
+          throw authorizedError;
         }
 
-        // Count unique members who have contributed
-        const uniqueContributors = new Set(contributions?.map(c => c.user_id) || []);
-        const contributedMembers = uniqueContributors.size;
+        const contributedMembers = authorizedMembers?.length || 0;
 
         // Calculate contribution percentage
         const contributionPercentage = totalMembers > 0 ? (contributedMembers / totalMembers) * 100 : 0;
 
         // Circle can be started if:
-        // 1. At least 80% of members have contributed
-        // 2. Circle status is not already 'active' or 'started' or 'completed'
-        const canStart = contributionPercentage >= 80 && 
+        // 1. At least 80% of members have authorized ACH contributions
+        // 2. Authorized members count is greater than min_members
+        // 3. Circle status is not already 'active' or 'started' or 'completed'
+        const requiredAuthorized = Math.ceil(totalMembers * 0.8);
+        const minMembers = circleDetails?.min_members ?? 0;
+        const canStart = contributedMembers >= requiredAuthorized && 
+                         contributedMembers > minMembers &&
                          circle.status !== 'active' && 
                          circle.status !== 'started' &&
                          circle.status !== 'completed';

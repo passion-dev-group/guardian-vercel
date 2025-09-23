@@ -49,6 +49,7 @@ const CircleDetails = () => {
     enabled: !!circleId && !!user,
   });
 
+
   // Check if current user is admin
   useEffect(() => {
     const checkAdminStatus = async () => {
@@ -218,6 +219,7 @@ const CircleDetails = () => {
                 circleName={circle.name}
                 contributionAmount={circle.contribution_amount}
                 frequency={circle.frequency}
+                circleStatus={circle.status}
               />
             </section>
           </div>

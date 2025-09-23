@@ -34,6 +34,7 @@ const IndividualGoalDetails = lazy(() => import("./pages/IndividualGoalDetails")
 const Referrals = lazy(() => import("./pages/Referrals"));
 const About = lazy(() => import("./pages/About"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const Admin = lazy(() => import("./pages/Admin"));
 const LoadingSpinner = lazy(() => import("@/components/LoadingSpinner"));
 const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
@@ -309,6 +310,16 @@ const AnimatedRoutes = () => {
           />
           
           {/* Catch-all route */}
+          <Route
+            path="/admin"
+            element={
+              <AnimatedPageWrapper>
+                <AuthGuard>
+                  <Admin />
+                </AuthGuard>
+              </AnimatedPageWrapper>
+            }
+          />
           <Route
             path="*"
             element={

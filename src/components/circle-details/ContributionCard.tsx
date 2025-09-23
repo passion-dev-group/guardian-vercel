@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { useCircleContributions } from "@/hooks/useCircleContributions";
 import { useContributionLimit } from "@/hooks/useContributionLimit";
 import { ContributionDialog } from "./ContributionDialog";
+import { AuthorizeRecurringACHButton } from "./AuthorizeRecurringACHButton";
 import { formatCurrency, formatDateRelative } from "@/lib/utils";
 import { DollarSign, Calendar, AlertCircle, CheckCircle } from "lucide-react";
 import { FrequencyType } from "@/types/frequency";
@@ -14,6 +15,8 @@ interface ContributionCardProps {
   circleName: string;
   contributionAmount: number;
   frequency: FrequencyType;
+  circleStatus?: string;
+  isAdmin?: boolean;
 }
 
 export function ContributionCard({
@@ -21,6 +24,8 @@ export function ContributionCard({
   circleName,
   contributionAmount,
   frequency,
+  circleStatus,
+  isAdmin,
 }: ContributionCardProps) {
   const [contributionDialogOpen, setContributionDialogOpen] = useState(false);
   const { contributionStatus, contributions, loading } = useCircleContributions(circleId);
@@ -77,7 +82,10 @@ export function ContributionCard({
     // Calculate next contribution date based on frequency
     const today = new Date();
     const frequencyDays = frequency === 'weekly' ? 7 : 
-                         frequency === 'biweekly' ? 14 : 30;
+                         frequency === 'biweekly' ? 14 : 
+                         frequency === 'monthly' ? 30 :
+                         frequency === 'quarterly' ? 90 :
+                         frequency === 'yearly' ? 365 : 30;
     
     const nextDate = new Date(today);
     nextDate.setDate(nextDate.getDate() + frequencyDays);
@@ -165,8 +173,8 @@ export function ContributionCard({
             </div>
           )}
 
-          {/* Action Button */}
-          <Button 
+          {/* Temporarily hidden contribution button; replaced with ACH authorization */}
+          {/* <Button 
             className="w-full mt-4" 
             onClick={() => setContributionDialogOpen(true)}
             disabled={!contributionLimitStatus.canContribute || contributionLimitStatus.isLoading}
@@ -179,7 +187,17 @@ export function ContributionCard({
                 : contributionLimitStatus.canContribute 
                   ? "Make Contribution"
                   : "Cannot Contribute"}
-          </Button>
+          </Button> */}
+
+          <AuthorizeRecurringACHButton
+            circleId={circleId}
+            circleName={circleName}
+            contributionAmount={contributionAmount}
+            frequency={frequency}
+            circleStatus={circleStatus}
+            isAdmin={isAdmin}
+            className="w-full mt-4"
+          />
         </CardContent>
       </Card>
 

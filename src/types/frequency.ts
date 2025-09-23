@@ -1,9 +1,9 @@
 /**
  * Frequency enum for recurring transactions, contributions, and circle payouts
  * Used across the application for consistent frequency handling
+ * Note: Plaid supports arbitrary weeks and months via interval_count
  */
 export enum Frequency {
-  DAILY = 'daily',
   WEEKLY = 'weekly',
   BIWEEKLY = 'biweekly',
   MONTHLY = 'monthly',
@@ -21,7 +21,6 @@ export type FrequencyType = `${Frequency}`;
  */
 export const getFrequencyDays = (frequency: FrequencyType): number => {
   switch (frequency) {
-    case Frequency.DAILY: return 1;
     case Frequency.WEEKLY: return 7;
     case Frequency.BIWEEKLY: return 14;
     case Frequency.MONTHLY: return 30;
@@ -36,7 +35,6 @@ export const getFrequencyDays = (frequency: FrequencyType): number => {
  */
 export const getFrequencyLabel = (frequency: FrequencyType): string => {
   switch (frequency) {
-    case Frequency.DAILY: return 'Daily';
     case Frequency.WEEKLY: return 'Weekly';
     case Frequency.BIWEEKLY: return 'Every 2 weeks';
     case Frequency.MONTHLY: return 'Monthly';
@@ -50,7 +48,6 @@ export const getFrequencyLabel = (frequency: FrequencyType): string => {
  * Helper function to get frequency options for dropdowns
  */
 export const getFrequencyOptions = () => [
-  { value: Frequency.DAILY, label: getFrequencyLabel(Frequency.DAILY) },
   { value: Frequency.WEEKLY, label: getFrequencyLabel(Frequency.WEEKLY) },
   { value: Frequency.BIWEEKLY, label: getFrequencyLabel(Frequency.BIWEEKLY) },
   { value: Frequency.MONTHLY, label: getFrequencyLabel(Frequency.MONTHLY) },

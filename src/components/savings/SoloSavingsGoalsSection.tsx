@@ -119,13 +119,13 @@ function GoalCard({ goal }: { goal: any }) {
   const { contributions, createContribution, updateContribution, deleteContribution, triggerPlaidTransfer } = useSoloSavingsRecurringContributions(goal.id);
   const [showRecurringSetup, setShowRecurringSetup] = useState(false);
   const [recurringAmount, setRecurringAmount] = useState('');
-  const [recurringFrequency, setRecurringFrequency] = useState<'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly'>('weekly');
+  const [recurringFrequency, setRecurringFrequency] = useState<'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly'>('weekly');
   const [recurringDay, setRecurringDay] = useState('1'); // Default to day 1 for monthly, will be updated when frequency changes
 
   // Update day when frequency changes
-  const handleFrequencyChange = (newFrequency: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly') => {
+  const handleFrequencyChange = (newFrequency: 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly') => {
     setRecurringFrequency(newFrequency);
-    if (newFrequency === 'monthly') {
+    if (newFrequency === 'monthly' || newFrequency === 'quarterly' || newFrequency === 'yearly') {
       setRecurringDay('1'); // Default to 1st of month
     } else {
       setRecurringDay('1'); // Default to Monday
@@ -217,7 +217,12 @@ function GoalCard({ goal }: { goal: any }) {
     if (existingContribution) {
       // Edit mode - populate with existing values
       setRecurringAmount(existingContribution.amount.toString());
-      setRecurringFrequency(existingContribution.frequency);
+      // Only set frequency if it's supported
+      const supportedFrequencies = ['weekly', 'biweekly', 'monthly', 'quarterly', 'yearly'];
+      const frequency = supportedFrequencies.includes(existingContribution.frequency) 
+        ? existingContribution.frequency 
+        : 'weekly';
+      setRecurringFrequency(frequency as 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly');
       if (existingContribution.day_of_month) {
         setRecurringDay(existingContribution.day_of_month.toString());
       } else if (existingContribution.day_of_week !== undefined) {
@@ -308,6 +313,8 @@ function GoalCard({ goal }: { goal: any }) {
                     {existingContribution.frequency === 'weekly' && 'per week'}
                     {existingContribution.frequency === 'biweekly' && 'every 2 weeks'}
                     {existingContribution.frequency === 'monthly' && 'per month'}
+                    {existingContribution.frequency === 'quarterly' && 'every 3 months'}
+                    {existingContribution.frequency === 'yearly' && 'per year'}
                   </span>
                 </div>
                 <div className="text-xs text-muted-foreground">
@@ -374,20 +381,22 @@ function GoalCard({ goal }: { goal: any }) {
               <label className="text-sm font-medium">Frequency</label>
               <select
                 value={recurringFrequency}
-                onChange={(e) => handleFrequencyChange(e.target.value as 'weekly' | 'biweekly' | 'monthly')}
+                onChange={(e) => handleFrequencyChange(e.target.value as 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly')}
                 className="w-full h-10 px-3 border rounded-md"
               >
                 <option value="weekly">Weekly</option>
                 <option value="biweekly">Every 2 weeks</option>
                 <option value="monthly">Monthly</option>
+                <option value="quarterly">Every 3 months</option>
+                <option value="yearly">Yearly</option>
               </select>
             </div>
             
             <div className="space-y-2">
               <label className="text-sm font-medium">
-                {recurringFrequency === 'monthly' ? 'Day of month' : 'Day of week'}
+                {(recurringFrequency === 'monthly' || recurringFrequency === 'quarterly' || recurringFrequency === 'yearly') ? 'Day of month' : 'Day of week'}
               </label>
-              {recurringFrequency === 'monthly' ? (
+              {(recurringFrequency === 'monthly' || recurringFrequency === 'quarterly' || recurringFrequency === 'yearly') ? (
                 <select
                   value={recurringDay}
                   onChange={(e) => setRecurringDay(e.target.value)}

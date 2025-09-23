@@ -16,6 +16,20 @@ export function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
+export async function hashString(input: string): Promise<string> {
+  const data = new TextEncoder().encode(input);
+  console.log("data", window.crypto);
+  const hashBuffer = await window.crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+export async function getCurrentIpAddress(): Promise<string> {
+  const response = await fetch('https://api.ipify.org?format=json');
+  const data = await response.json();
+  return data.ip;
+}
+
 export function formatDateRelative(date: Date | string): string {
   const targetDate = typeof date === 'string' ? new Date(date) : date;
   const now = new Date();

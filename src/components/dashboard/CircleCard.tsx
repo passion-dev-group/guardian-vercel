@@ -5,9 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatDateRelative } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import { trackEvent } from "@/lib/analytics";
-import { InfoIcon, DollarSign, Users, Calendar, TrendingUp } from "lucide-react";
+import { InfoIcon, Users, Calendar, TrendingUp } from "lucide-react";
 import TermsAndConditionsDialog from "../circle/TermsAndConditionsDialog";
 import { ContributionDialog } from "../circle-details/ContributionDialog";
+import { AuthorizeRecurringACHButton } from "../circle-details/AuthorizeRecurringACHButton";
 import { useContributionLimit } from "@/hooks/useContributionLimit";
 import { FrequencyType } from "@/types/frequency";
 import { useState, useEffect } from "react";
@@ -21,6 +22,8 @@ interface CircleCardProps {
   memberCount: number;
   nextPayoutDate: Date | null;
   isYourTurn: boolean;
+  circleStatus?: string;
+  isAdmin?: boolean;
 }
 
 interface CircleStats {
@@ -40,6 +43,8 @@ const CircleCard = ({
   memberCount,
   nextPayoutDate,
   isYourTurn,
+  circleStatus,
+  isAdmin,
 }: CircleCardProps) => {
   const [contributionDialogOpen, setContributionDialogOpen] = useState(false);
   const [stats, setStats] = useState<CircleStats | null>(null);
@@ -148,7 +153,6 @@ const CircleCard = ({
       circle_id: id,
       circle_name: name,
     });
-    setContributionDialogOpen(true);
   };
 
   const getContributionStatusColor = (status: string) => {
@@ -241,26 +245,17 @@ const CircleCard = ({
           <Link to={`/circles/${id}`} className="flex-1" onClick={handleViewDetails}>
             <Button className="w-full" variant="secondary">View Details</Button>
           </Link>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={handleQuickContribute}
+          <AuthorizeRecurringACHButton
+            circleId={id}
+            circleName={name}
+            contributionAmount={contributionAmount}
+            frequency={frequency}
+            circleStatus={circleStatus}
+            isAdmin={isAdmin}
+            variant="outline"
+            size="sm"
             className="flex items-center gap-1"
-            disabled={
-              stats?.contributionStatus === "up_to_date" || 
-              !contributionLimitStatus.canContribute ||
-              contributionLimitStatus.isLoading
-            }
-          >
-            <DollarSign className="h-3 w-3" />
-            {contributionLimitStatus.hasProcessingContribution 
-              ? "Processing..." 
-              : stats?.contributionStatus === "up_to_date" 
-                ? "Up to Date" 
-                : contributionLimitStatus.canContribute
-                  ? "Contribute"
-                  : "Cannot Contribute"}
-          </Button>
+          />
         </div>
         <div className="w-full flex justify-end">
           <TermsAndConditionsDialog 

@@ -20,6 +20,8 @@ import { ArrowLeft, Users } from "lucide-react";
 import { ContactsPicker } from "@/components/contacts/ContactsPicker";
 import { useNavigate } from "react-router-dom";
 import EnhancedMemberInvitation from "./EnhancedMemberInvitation";
+import { AuthorizeRecurringACHDialog } from "@/components/circle-details/AuthorizeRecurringACHDialog";
+import { useState } from "react";
 
 interface CircleFormProps {
   form: UseFormReturn<CircleFormValues>;
@@ -33,6 +35,7 @@ interface CircleFormProps {
   generateInviteLink: () => void;
   handleTermsAccept: () => void;
   handleTermsDecline: () => void;
+  createCircleAndGetId: (values: CircleFormValues) => Promise<string | null>;
 }
 
 const CircleForm = ({
@@ -47,11 +50,59 @@ const CircleForm = ({
   generateInviteLink,
   handleTermsAccept,
   handleTermsDecline,
+  createCircleAndGetId,
 }: CircleFormProps) => {
   const navigate = useNavigate();
+  const [achDialogOpen, setAchDialogOpen] = useState(false);
+  const [createdCircleId, setCreatedCircleId] = useState<string | null>(null);
+  const [createdCircleName, setCreatedCircleName] = useState<string>("");
+  const [createdContributionAmount, setCreatedContributionAmount] = useState<number>(0);
+  const [createdFrequency, setCreatedFrequency] = useState<string>("monthly");
 
   const handleCancel = () => {
     navigate(-1);
+  };
+
+  const handleFormSubmit = async (values: CircleFormValues) => {
+    // First create the circle
+    try {
+      // Create the circle and get the circle ID
+      const circleId = await createCircleAndGetId(values);
+      
+      if (circleId) {
+        // After circle creation, show ACH authorization dialog
+        setCreatedCircleId(circleId);
+        setCreatedCircleName(values.name);
+        setCreatedContributionAmount(values.amount);
+        setCreatedFrequency(values.frequency);
+        setAchDialogOpen(true);
+      }
+      
+    } catch (error) {
+      console.error("Error creating circle:", error);
+    }
+  };
+
+  const handleAchDialogClose = (open: boolean) => {
+    setAchDialogOpen(open);
+    if (!open) {
+      setCreatedCircleId(null);
+      setCreatedCircleName("");
+      setCreatedContributionAmount(0);
+      setCreatedFrequency("monthly");
+    }
+  };
+
+  const handleAchAuthorizationSuccess = () => {
+    // Close the dialog and navigate to circle details
+    setAchDialogOpen(false);
+    setCreatedCircleId(null);
+    setCreatedCircleName("");
+    setCreatedContributionAmount(0);
+    setCreatedFrequency("monthly");
+    
+    // Navigate to dashboard to see the created circle
+    navigate('/dashboard');
   };
   
   return (
@@ -69,7 +120,7 @@ const CircleForm = ({
         </Button>
       </div>
       
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-8">
         <FormField
           control={form.control}
           name="name"
@@ -292,6 +343,19 @@ const CircleForm = ({
           </div>
         </div>
       </form>
+
+      {/* ACH Authorization Dialog */}
+      {createdCircleId && (
+        <AuthorizeRecurringACHDialog
+          circleId={createdCircleId}
+          circleName={createdCircleName}
+          contributionAmount={createdContributionAmount}
+          frequency={createdFrequency as any}
+          isOpen={achDialogOpen}
+          onOpenChange={handleAchDialogClose}
+          onAuthorizationSuccess={handleAchAuthorizationSuccess}
+        />
+      )}
     </Form>
   );
 };

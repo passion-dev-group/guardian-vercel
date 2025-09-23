@@ -277,6 +277,69 @@ export const useCircleForm = () => {
     }
   };
 
+  // Function to create circle and return the circle ID
+  const createCircleAndGetId = async (values: CircleFormValues): Promise<string | null> => {
+    if (!user) {
+      toast.error("You must be logged in to create a circle");
+      return null;
+    }
+
+    if (!termsAccepted) {
+      toast.error("You must accept the terms and conditions to create a circle");
+      return null;
+    }
+
+    try {
+      console.log("Creating circle with user ID:", user.id);
+      
+      // Insert the new circle into the database
+      const { data: circleData, error: circleError } = await supabase
+        .from('circles')
+        .insert({
+          name: values.name,
+          contribution_amount: values.amount,
+          frequency: values.frequency,
+          created_by: user.id,
+          start_date: values.startDate || null,
+          min_members: values.minMembers || 2,
+          max_members: values.maxMembers || 10,
+          status: 'pending', // Set initial status to pending
+        })
+        .select('id')
+        .single();
+
+      if (circleError) {
+        console.error("Circle creation error details:", circleError);
+        toast.error(`Failed to create circle: ${circleError.message}`);
+        return null;
+      }
+
+      console.log("Circle created successfully:", circleData);
+      const circleId = circleData.id;
+      
+      // Add the current user as a member and admin of the circle
+      const { error: memberError } = await supabase
+        .from('circle_members')
+        .insert({
+          circle_id: circleId,
+          user_id: user.id,
+          is_admin: true,
+          payout_position: 1 // Creator is first in line
+        });
+
+      if (memberError) {
+        console.error("Error adding creator as member:", memberError);
+        // Continue anyway, we've created the circle
+      }
+
+      return circleId;
+    } catch (error: any) {
+      console.error("Error creating circle:", error);
+      toast.error(`Failed to create circle: ${error?.message || "Unknown error"}`);
+      return null;
+    }
+  };
+
   return {
     form,
     isSubmitting,
@@ -290,5 +353,6 @@ export const useCircleForm = () => {
     handleTermsDecline,
     onSubmit,
     setInviteLink,
+    createCircleAndGetId,
   };
 };

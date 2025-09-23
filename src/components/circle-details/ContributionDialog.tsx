@@ -29,6 +29,7 @@ interface ContributionDialogProps {
   frequency: FrequencyType;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
+  onTestClockCreated?: (testClockId: string, recurringTransferId: string) => void;
 }
 
 export function ContributionDialog({
@@ -38,6 +39,7 @@ export function ContributionDialog({
   frequency,
   isOpen,
   onOpenChange,
+  onTestClockCreated,
 }: ContributionDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -56,6 +58,7 @@ export function ContributionDialog({
   const [selectedAccountId, setSelectedAccountId] = useState<string>("");
 
   const handleContribution = async () => {
+  
     if (!user) {
       toast({
         title: "Authentication Required",
@@ -109,7 +112,7 @@ export function ContributionDialog({
         target_id: circleId,
         target_name: circleName,
       });
-
+      
       if (recurringTransferResult.success) {
         // Track the contribution setup event
         trackEvent('circle_recurring_contribution_setup', {
@@ -119,6 +122,11 @@ export function ContributionDialog({
           frequency: frequency,
           recurring_transfer_id: recurringTransferResult.recurring_transfer_id,
         });
+
+        // In development mode, try to extract test clock info from the response
+        if (import.meta.env.VITE_DEBUG_MODE=="true" && recurringTransferResult.test_clock_id) {
+          onTestClockCreated?.(recurringTransferResult.test_clock_id, recurringTransferResult.recurring_transfer_id);
+        }
 
         // Show success notification
         toast({
@@ -189,10 +197,9 @@ export function ContributionDialog({
                 {
                   frequency === 'weekly' ? 'Weekly' :
                   frequency === 'biweekly' ? 'Every 2 weeks' :
-                    frequency === 'quarterly' ? 'Every 3 months' :
-                      frequency === 'yearly' ? 'Yearly' :
-                        frequency === 'daily' ? 'Daily' :
-                          `${frequency?.charAt(0).toUpperCase()}${frequency?.slice(1)}ly`}
+                    frequency === 'monthly' ? 'Monthly' :
+                      frequency === 'quarterly' ? 'Every 3 months' :
+                        frequency === 'yearly' ? 'Yearly' : 'Monthly'}
               </span>
             </div>
             <div className="flex items-center justify-between">

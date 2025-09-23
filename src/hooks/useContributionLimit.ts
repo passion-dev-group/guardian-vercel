@@ -108,7 +108,7 @@ export const useContributionLimit = (circleId: string | undefined) => {
             case 'biweekly': return 14;
             case 'monthly': return 30;
             case 'quarterly': return 90;
-            case 'annual': return 365;
+            case 'yearly': return 365;
             default: return 30;
           }
         };

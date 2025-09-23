@@ -84,7 +84,8 @@ serve(async (req) => {
       description,
       type,
       target_id,
-      target_name
+      target_name,
+      test_clock_id
     } = await req.json()
 
     // Initialize Supabase client
@@ -239,52 +240,67 @@ serve(async (req) => {
       )
     }
 
-    // Calculate schedule based on frequency
+    // Calculate schedule based on frequency - support all frequencies via interval_count
     let schedule: any;
     switch (frequency) {
-      case 'daily':
-        schedule = {
-          interval_unit: 'day',
-          interval_count: 1,
-        };
-        break;
       case 'weekly':
         schedule = {
           interval_unit: 'week',
           interval_count: 1,
-          interval_execution_day: day_of_week || 1, // Default to Monday
+          interval_execution_day: day_of_week || 1, // 1-5 for Monday-Friday
         };
         break;
       case 'biweekly':
         schedule = {
           interval_unit: 'week',
           interval_count: 2,
-          interval_execution_day: day_of_week || 1,
+          interval_execution_day: day_of_week || 1, // 1-5 for Monday-Friday
         };
         break;
       case 'monthly':
+        // Validate interval_execution_day for monthly schedules
+        const executionDay = day_of_month || 1;
+        if (executionDay < 1 || executionDay > 28) {
+          if (executionDay < -5 || executionDay > -1) {
+            return await handleError(supabase, 'For monthly schedules, interval_execution_day must be 1-28 or -1 to -5', 400);
+          }
+        }
         schedule = {
           interval_unit: 'month',
           interval_count: 1,
-          interval_execution_day: day_of_month || 1,
+          interval_execution_day: executionDay,
         };
         break;
       case 'quarterly':
+        // Validate interval_execution_day for quarterly schedules (monthly with count=3)
+        const quarterlyExecutionDay = day_of_month || 1;
+        if (quarterlyExecutionDay < 1 || quarterlyExecutionDay > 28) {
+          if (quarterlyExecutionDay < -5 || quarterlyExecutionDay > -1) {
+            return await handleError(supabase, 'For quarterly schedules, interval_execution_day must be 1-28 or -1 to -5', 400);
+          }
+        }
         schedule = {
           interval_unit: 'month',
           interval_count: 3,
-          interval_execution_day: day_of_month || 1,
+          interval_execution_day: quarterlyExecutionDay,
         };
         break;
       case 'yearly':
+        // Validate interval_execution_day for yearly schedules (monthly with count=12)
+        const yearlyExecutionDay = day_of_month || 1;
+        if (yearlyExecutionDay < 1 || yearlyExecutionDay > 28) {
+          if (yearlyExecutionDay < -5 || yearlyExecutionDay > -1) {
+            return await handleError(supabase, 'For yearly schedules, interval_execution_day must be 1-28 or -1 to -5', 400);
+          }
+        }
         schedule = {
           interval_unit: 'month',
           interval_count: 12,
-          interval_execution_day: day_of_month || 1,
+          interval_execution_day: yearlyExecutionDay,
         };
         break;
       default:
-        return await handleError(supabase, 'Invalid frequency. Must be one of: daily, weekly, biweekly, monthly, quarterly, yearly', 400);
+        return await handleError(supabase, 'Invalid frequency. Must be one of: weekly, biweekly, monthly, quarterly, yearly', 400);
     }
 
     // Create recurring transfer
@@ -308,7 +324,7 @@ serve(async (req) => {
         start_date: startDate.toISOString().split('T')[0] // Format as YYYY-MM-DD
       };
 
-      const recurringTransferRequest = {
+      const recurringTransferRequest: any = {
         access_token,
         account_id,
         type: 'debit' as const,
@@ -332,6 +348,41 @@ serve(async (req) => {
         schedule: scheduleWithStartDate,
       };
 
+      // Handle test clock for sandbox environment
+      const plaidEnv = Deno.env.get('PLAID_ENV') || 'sandbox';
+      let testClockId: string | undefined = test_clock_id; // Use provided test_clock_id if available
+      
+      if (plaidEnv === 'sandbox') {
+        if (test_clock_id) {
+          // Use the provided test clock ID
+          testClockId = test_clock_id;
+          recurringTransferRequest.test_clock_id = testClockId;
+          console.log('Using provided test clock for sandbox testing:', testClockId);
+        } else {
+          // Create a new test clock automatically for sandbox testing
+          console.log("creating test clock");
+          try {
+            // Set virtual time to a known Monday (like the Plaid example)
+            const virtualTime = new Date('2022-11-14T07:00:00-08:00').toISOString();
+            const testClockResponse = await plaidClient.sandboxTransferTestClockCreate({
+              virtual_time: virtualTime
+            });
+            
+            if (testClockResponse.data.test_clock.test_clock_id) {
+              testClockId = testClockResponse.data.test_clock.test_clock_id;
+              recurringTransferRequest.test_clock_id = testClockId;
+              console.log('Auto-created test clock for sandbox testing:', testClockId);
+              console.log('Virtual time set to:', virtualTime);
+            }else{
+              console.error('Failed to create test clock:', testClockResponse.data);
+            }
+          } catch (testClockError) {
+            console.warn('Failed to create test clock, proceeding without it:', testClockError);
+            // Continue without test clock if creation fails
+          }
+        }
+      }
+// 
       // Remove undefined address fields
       if (!recurringTransferRequest.user.address.street) delete recurringTransferRequest.user.address.street;
       if (!recurringTransferRequest.user.address.city) delete recurringTransferRequest.user.address.city;
@@ -348,6 +399,7 @@ serve(async (req) => {
         idempotency_key: recurringTransferRequest.idempotency_key,
         description: recurringTransferRequest.description,
         schedule: recurringTransferRequest.schedule,
+        test_clock_id: recurringTransferRequest.test_clock_id,
         user: {
           legal_name: recurringTransferRequest.user.legal_name,
           phone_number: recurringTransferRequest.user.phone_number ? '[REDACTED]' : null,
@@ -364,17 +416,48 @@ serve(async (req) => {
         status: recurringTransfer.status
       });
 
+      // In sandbox mode, advance test clock to trigger recurring transfers
+      if (plaidEnv === 'sandbox' && testClockId) {
+        try {
+          // Advance test clock to the first execution day to trigger the first transfer
+          const firstExecutionDate = new Date(scheduleWithStartDate.start_date);
+          const advanceTime = new Date(firstExecutionDate);
+          advanceTime.setHours(23, 59, 0, 0); // End of day
+          advanceTime.setTime(advanceTime.getTime() - 8 * 60 * 60 * 1000); // Convert to PST
+          
+          console.log('Advancing test clock to trigger first transfer:', advanceTime.toISOString());
+          await plaidClient.sandboxTransferTestClockAdvance({
+            test_clock_id: testClockId,
+            virtual_time: advanceTime.toISOString()
+          });
+          
+          // Wait a moment for the transfer to be generated
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          // Check the recurring transfer to see if transfers were generated
+          const recurringTransferDetails = await plaidClient.transferRecurringGet({
+            recurring_transfer_id: recurringTransfer.recurring_transfer_id
+          });
+          
+          if (recurringTransferDetails.data.recurring_transfer) {
+            const transferCount = recurringTransferDetails.data.recurring_transfer.transfer_ids?.length || 0;
+            console.log(`Recurring transfer status: ${recurringTransferDetails.data.recurring_transfer.status}`);
+            console.log(`Generated ${transferCount} transfer(s) so far`);
+          }
+        } catch (advanceError) {
+          console.warn('Failed to advance test clock or check recurring transfer:', advanceError);
+          // Continue even if advancement fails
+        }
+      }
+
       // Calculate next contribution date based on frequency and schedule
       const calculateNextContributionDate = (freq: string, dayOfWeek?: number, dayOfMonth?: number): Date => {
         const now = new Date();
         const nextDate = new Date(now);
         
         switch (freq) {
-          case 'daily':
-            nextDate.setDate(now.getDate() + 1);
-            break;
           case 'weekly':
-            const targetDay = dayOfWeek || 1; // Default to Monday
+            const targetDay = dayOfWeek || 1; // Default to Monday (1-5 for Monday-Friday)
             const currentDay = now.getDay();
             const daysUntilTarget = (targetDay - currentDay + 7) % 7 || 7;
             nextDate.setDate(now.getDate() + daysUntilTarget);
@@ -388,17 +471,40 @@ serve(async (req) => {
           case 'monthly':
             const targetDayMonth = dayOfMonth || 1;
             nextDate.setMonth(now.getMonth() + 1);
-            nextDate.setDate(Math.min(targetDayMonth, new Date(nextDate.getFullYear(), nextDate.getMonth() + 1, 0).getDate()));
+            // Handle negative days (last day of month, etc.)
+            if (targetDayMonth < 0) {
+              // For negative days, set to last day of next month minus the absolute value
+              const lastDay = new Date(nextDate.getFullYear(), nextDate.getMonth() + 1, 0).getDate();
+              nextDate.setDate(lastDay + targetDayMonth + 1);
+            } else {
+              // For positive days, ensure we don't exceed the number of days in the month
+              const maxDay = new Date(nextDate.getFullYear(), nextDate.getMonth() + 1, 0).getDate();
+              nextDate.setDate(Math.min(targetDayMonth, maxDay));
+            }
             break;
           case 'quarterly':
             const targetDayQuarter = dayOfMonth || 1;
             nextDate.setMonth(now.getMonth() + 3);
-            nextDate.setDate(Math.min(targetDayQuarter, new Date(nextDate.getFullYear(), nextDate.getMonth() + 1, 0).getDate()));
+            // Handle negative days (last day of month, etc.)
+            if (targetDayQuarter < 0) {
+              const lastDay = new Date(nextDate.getFullYear(), nextDate.getMonth() + 1, 0).getDate();
+              nextDate.setDate(lastDay + targetDayQuarter + 1);
+            } else {
+              const maxDay = new Date(nextDate.getFullYear(), nextDate.getMonth() + 1, 0).getDate();
+              nextDate.setDate(Math.min(targetDayQuarter, maxDay));
+            }
             break;
           case 'yearly':
             const targetDayYear = dayOfMonth || 1;
             nextDate.setFullYear(now.getFullYear() + 1);
-            nextDate.setDate(Math.min(targetDayYear, new Date(nextDate.getFullYear(), nextDate.getMonth() + 1, 0).getDate()));
+            // Handle negative days (last day of month, etc.)
+            if (targetDayYear < 0) {
+              const lastDay = new Date(nextDate.getFullYear(), nextDate.getMonth() + 1, 0).getDate();
+              nextDate.setDate(lastDay + targetDayYear + 1);
+            } else {
+              const maxDay = new Date(nextDate.getFullYear(), nextDate.getMonth() + 1, 0).getDate();
+              nextDate.setDate(Math.min(targetDayYear, maxDay));
+            }
             break;
           default:
             // Default to next week
@@ -422,6 +528,7 @@ serve(async (req) => {
         next_contribution_date: nextContributionDate.toISOString(),
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
+        test_clock_id: testClockId || null,
       };
 
       console.log('About to store in database:', {
@@ -470,6 +577,7 @@ serve(async (req) => {
           recurring_transfer_id: recurringTransfer.recurring_transfer_id,
           message: 'Recurring transfer created successfully',
           amount: amount,
+          test_clock_id: testClockId, // Include test clock ID for sandbox testing
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );

@@ -294,21 +294,21 @@ class PlaidService {
     type: 'debit' | 'credit';
     amount: string;
     ach_class: 'ppd' | 'ccd';
-    user: {
-      legal_name: string;
-      phone_number: string;
-      email_address: string;
-      address: {
-        street: string;
-        city: string;
-        state: string;
-        zip: string;
-        country: string;
+    user?: {
+      legal_name?: string;
+      phone_number?: string;
+      email_address?: string;
+      address?: {
+        street?: string;
+        city?: string;
+        region?: string;
+        postal_code?: string;
+        country?: string;
       };
     };
-    device: {
-      user_agent: string;
-      ip_address: string;
+    device?: {
+      user_agent?: string;
+      ip_address?: string;
     };
   }): Promise<{
     success: boolean;
@@ -331,7 +331,7 @@ class PlaidService {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session?.access_token}`,
         },
-        body: JSON.stringify(authData),
+        body: JSON.stringify({ ...authData, network: 'ach' }),
       });
 
       if (!response.ok) {
@@ -341,6 +341,40 @@ class PlaidService {
       return await response.json();
     } catch (error) {
       console.error('Error creating transfer authorization:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Store ACH authorization consent for a circle
+   */
+  async storeAchAuthorization(payload: {
+    circle_id: string;
+    plaid_account_id: string;
+    linked_bank_account_id?: string;
+    amount: number;
+    frequency: FrequencyType;
+    consent_text_hash: string;
+    user_agent?: string;
+    ip_address?: string;
+  }): Promise<{ success: boolean; authorization?: any; error?: string; }> {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch(`${this.baseUrl}/functions/v1/store-ach-authorization`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Failed to store ACH authorization');
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Error storing ACH authorization:', error);
       throw error;
     }
   }
@@ -420,11 +454,13 @@ class PlaidService {
     type: 'circle' | 'savings_goal';
     target_id: string; // circle_id or goal_id
     target_name: string; // circle_name or goal_name
+    test_clock_id?: string; // Optional test clock ID for sandbox testing
   }): Promise<{
     success: boolean;
     recurring_transfer_id: string;
     message: string;
     amount: number;
+    test_clock_id?: string; // Optional test clock ID for sandbox testing
     error?: string;
     plaid_error?: string;
   }> {
@@ -443,7 +479,6 @@ class PlaidService {
         const errorData = await response.json();
         throw new Error(errorData.error || `Failed to create recurring transfer: ${response.statusText}`);
       }
-
       return await response.json();
     } catch (error) {
       console.error('Error creating recurring transfer:', error);
@@ -538,8 +573,8 @@ class PlaidService {
           address: {
             street: 'placeholder',
             city: 'placeholder',
-            state: 'placeholder',
-            zip: 'placeholder',
+            region: 'placeholder',
+            postal_code: 'placeholder',
             country: 'US',
           },
         },
@@ -619,6 +654,106 @@ class PlaidService {
       throw error;
     }
   }
+
+  /**
+   * Advance test clock for sandbox testing
+   */
+  async advanceTestClock(testClockId: string, virtualTime: string, recurringTransferId?: string): Promise<{
+    success: boolean;
+    test_clock_id: string;
+    virtual_time: string;
+    message: string;
+    transfer_details?: any;
+    error?: string;
+  }> {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch(`${this.baseUrl}/functions/v1/plaid-advance-test-clock`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({ 
+          test_clock_id: testClockId,
+          virtual_time: virtualTime,
+          recurring_transfer_id: recurringTransferId
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to advance test clock: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error advancing test clock:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Simulate a transfer status in Plaid sandbox
+   */
+  async simulateTransferStatus(transferId: string, eventType: 'posted' | 'pending' | 'cancelled' | 'failed' | 'returned') {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch(`${this.baseUrl}/functions/v1/plaid-simulate-transfer`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({ transfer_id: transferId, event_type: eventType }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to simulate transfer: ${response.statusText}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Error simulating transfer status:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create a test clock for sandbox testing
+   */
+  async createTestClock(virtualTime: string): Promise<{
+    success: boolean;
+    test_clock_id: string;
+    virtual_time: string;
+    message: string;
+    error?: string;
+  }> {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch(`${this.baseUrl}/functions/v1/plaid-advance-test-clock`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({ 
+          action: 'create_clock',
+          virtual_time: virtualTime
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to create test clock: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error creating test clock:', error);
+      throw error;
+    }
+  }
+
 }
 
 export const plaidService = new PlaidService(); 

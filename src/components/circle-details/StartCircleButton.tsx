@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { trackEvent } from "@/lib/analytics";
 import { useCircleStartStatus } from "@/hooks/useCircleStartStatus";
+import { plaidService } from "@/lib/plaid";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -55,6 +56,85 @@ const StartCircleButton = ({
     setIsStarting(true);
     
     try {
+      // Get circle details including frequency
+      const { data: circleData, error: circleError } = await supabase
+        .from('circles')
+        .select('frequency, contribution_amount')
+        .eq('id', circleId)
+        .single();
+
+      if (circleError) {
+        throw circleError;
+      }
+
+      // Get all authorized members with their bank account details
+      const { data: authorizedMembers, error: authError } = await supabase
+        .from('circle_ach_authorizations')
+        .select(`
+          user_id,
+          plaid_account_id,
+          linked_bank_account_id,
+          linked_bank_accounts!inner(
+            plaid_access_token,
+            account_id
+          )
+        `)
+        .eq('circle_id', circleId)
+        .eq('status', 'authorized');
+
+      if (authError) {
+        throw authError;
+      }
+
+      if (!authorizedMembers || authorizedMembers.length === 0) {
+        throw new Error('No authorized members found');
+      }
+
+      // Create a single test clock for this circle (all transfers will use the same clock)
+      const testClockResponse = await plaidService.createTestClock(new Date().toISOString());
+
+      if (!testClockResponse.success || !testClockResponse.test_clock_id) {
+        throw new Error('Failed to create test clock for circle');
+      }
+
+      const testClockId = testClockResponse.test_clock_id;
+
+      // Create recurring transfers for all authorized members using the same test clock
+      const recurringTransferPromises = authorizedMembers.map(async (member) => {
+        try {
+          const recurringTransferResult = await plaidService.createRecurringTransfer({
+            user_id: member.user_id,
+            amount: circleData.contribution_amount,
+            account_id: member.linked_bank_accounts[0].account_id,
+            access_token: member.linked_bank_accounts[0].plaid_access_token,
+            frequency: circleData.frequency,
+            description: `Circle contribution for ${circleName}`,
+            type: 'circle',
+            target_id: circleId,
+            target_name: circleName,
+            test_clock_id: testClockId
+          });
+
+          if (!recurringTransferResult.success) {
+            console.error(`Failed to create recurring transfer for user ${member.user_id}:`, recurringTransferResult.error);
+            return { success: false, user_id: member.user_id, error: recurringTransferResult.error };
+          }
+
+          return { success: true, user_id: member.user_id, recurring_transfer_id: recurringTransferResult.recurring_transfer_id };
+        } catch (error) {
+          console.error(`Error creating recurring transfer for user ${member.user_id}:`, error);
+          return { success: false, user_id: member.user_id, error: error.message };
+        }
+      });
+
+      const transferResults = await Promise.all(recurringTransferPromises);
+      const successfulTransfers = transferResults.filter(r => r.success);
+      const failedTransfers = transferResults.filter(r => !r.success);
+
+      if (successfulTransfers.length === 0) {
+        throw new Error('Failed to create any recurring transfers');
+      }
+
       // Update circle status to 'active'
       const { error: updateError } = await supabase
         .from('circles')
@@ -86,12 +166,20 @@ const StartCircleButton = ({
         circle_id: circleId,
         circle_name: circleName,
         total_members: totalMembers,
-        contribution_percentage: contributionPercentage
+        contribution_percentage: contributionPercentage,
+        successful_transfers: successfulTransfers.length,
+        failed_transfers: failedTransfers.length,
+        test_clock_id: testClockId
       });
+
+      // Show success message with details
+      const successMessage = failedTransfers.length > 0 
+        ? `${circleName} is now active! ${successfulTransfers.length} recurring transfers created successfully. ${failedTransfers.length} transfers failed - check logs.`
+        : `${circleName} is now active! All ${successfulTransfers.length} recurring transfers created successfully.`;
 
       toast({
         title: "Circle Started! 🎉",
-        description: `${circleName} is now active. The payout rotation has been initialized.`,
+        description: successMessage,
       });
 
       // Refresh the status
@@ -192,7 +280,7 @@ const StartCircleButton = ({
           <div className="flex justify-between text-sm">
             <span className="flex items-center gap-1">
               <Users className="h-4 w-4" />
-              Member Contributions
+              Authorized Members
             </span>
             <span className="font-medium">
               {contributedMembers} of {totalMembers} ({contributionPercentage}%)
@@ -230,7 +318,7 @@ const StartCircleButton = ({
               <AlertDialogDescription className="space-y-2">
                 <p>
                   You're about to start this savings circle with {totalMembers} members. 
-                  {contributedMembers} members ({contributionPercentage}%) have already contributed.
+                  {contributedMembers} members ({contributionPercentage}%) have authorized recurring contributions.
                 </p>
                 <p>
                   <strong>This action will:</strong>

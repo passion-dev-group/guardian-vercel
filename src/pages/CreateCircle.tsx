@@ -18,6 +18,7 @@ const CreateCircle = () => {
     handleTermsAccept,
     handleTermsDecline,
     onSubmit,
+    createCircleAndGetId,
   } = useCircleForm();
 
   return (
@@ -44,6 +45,7 @@ const CreateCircle = () => {
                 generateInviteLink={generateInviteLink}
                 handleTermsAccept={handleTermsAccept}
                 handleTermsDecline={handleTermsDecline}
+                createCircleAndGetId={createCircleAndGetId}
               />
             </CardContent>
           </Card>

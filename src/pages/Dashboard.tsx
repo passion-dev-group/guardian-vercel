@@ -25,12 +25,13 @@ const Dashboard = () => {
     if (!user) return;
 
     try {
-      // Fetch circles with member counts in a single optimized query
+      // Fetch circles with member counts and admin status in a single optimized query
       const { data, error } = await supabase
         .from("circle_members")
         .select(
           `
           circle_id,
+          is_admin,
           circles!inner (
             id,
             name,
@@ -73,9 +74,12 @@ const Dashboard = () => {
         memberCountMap.set(member.circle_id, count + 1);
       });
 
-      // Process circles with member counts
-      const processedCircles: Circle[] = data
-        .map(member => member.circles)
+      // Process circles with member counts and admin status
+      const processedCircles: (Circle & { isAdmin: boolean })[] = data
+        .map(member => ({
+          ...member.circles,
+          isAdmin: member.is_admin || false
+        }))
         .filter(Boolean)
         .map((circle: any) => ({
           id: circle.id,
@@ -85,7 +89,8 @@ const Dashboard = () => {
           status: circle.status,
           created_at: circle.created_at,
           created_by: '', // We need this to satisfy the type but don't have the data
-          memberCount: memberCountMap.get(circle.id) || 0
+          memberCount: memberCountMap.get(circle.id) || 0,
+          isAdmin: circle.isAdmin
         }));
 
       // Remove duplicates (in case user is in same circle multiple times)
@@ -207,6 +212,8 @@ const Dashboard = () => {
                         memberCount={circle.memberCount || 0}
                         nextPayoutDate={null} // We don't have this info yet
                         isYourTurn={false} // We don't have this info yet
+                        circleStatus={circle.status}
+                        isAdmin={(circle as any).isAdmin}
                       />
                     ))
                   ) : (

@@ -11,25 +11,26 @@ const corsHeaders = {
 interface AuthorizationRequest {
   access_token: string;
   account_id: string;
-  type: 'debit' | 'credit';
-  network: 'ach';
+  type?: 'debit' | 'credit';
+  network?: 'ach';
   amount: string;
-  ach_class: 'ppd' | 'ccd';
-  user: {
-    legal_name: string;
-    phone_number: string;
-    email_address: string;
-    address: {
-      street: string;
-      city: string;
-      state: string;
-      zip: string;
-      country: string;
+  ach_class?: 'ppd' | 'ccd';
+  // Optional: if not provided, we will enrich from profile/headers
+  user?: {
+    legal_name?: string;
+    phone_number?: string;
+    email_address?: string;
+    address?: {
+      street?: string;
+      city?: string;
+      region?: string;
+      postal_code?: string;
+      country?: string;
     };
   };
-  device: {
-    user_agent: string;
-    ip_address: string;
+  device?: {
+    user_agent?: string;
+    ip_address?: string;
   };
 }
 
@@ -49,6 +50,43 @@ serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       )
     }
+
+    // Build Supabase client to fetch user profile
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      global: { headers: { Authorization: req.headers.get('Authorization') || '' } }
+    })
+
+    const { data: { user } } = await supabase.auth.getUser()
+    let profile: any = null
+    if (user) {
+      const { data: p } = await supabase
+        .from('profiles')
+        .select('display_name, email, phone, address_street, address_city, address_state, address_zip, address_country')
+        .eq('id', user.id)
+        .maybeSingle()
+      profile = p
+    }
+
+    // Derive user fields
+    const enrichedUser = {
+      legal_name: authRequest.user?.legal_name || profile?.display_name || 'Unknown',
+      phone_number: authRequest.user?.phone_number || profile?.phone || '',
+      email_address: authRequest.user?.email_address || profile?.email || user?.email || '',
+      address: {
+        street: authRequest.user?.address?.street || profile?.address_street || '',
+        city: authRequest.user?.address?.city || profile?.address_city || '',
+        region: authRequest.user?.address?.region || profile?.address_state || '',
+        postal_code: authRequest.user?.address?.postal_code || profile?.address_zip || '',
+        country: authRequest.user?.address?.country || profile?.address_country || 'US',
+      }
+    }
+
+    // Derive device fields from headers
+    const forwardedFor = req.headers.get('x-forwarded-for') || ''
+    const ip = authRequest.device?.ip_address || forwardedFor.split(',')[0]?.trim() || ''
+    const ua = authRequest.device?.user_agent || req.headers.get('user-agent') || ''
 
     // Initialize Plaid client
     const plaidClientId = Deno.env.get('PLAID_CLIENT_ID')!
@@ -70,12 +108,12 @@ serve(async (req) => {
     const request: TransferAuthorizationCreateRequest = {
       access_token: authRequest.access_token,
       account_id: authRequest.account_id,
-      type: authRequest.type,
-      network: authRequest.network,
+      type: authRequest.type || 'debit',
+      network: authRequest.network || 'ach',
       amount: authRequest.amount,
-      ach_class: authRequest.ach_class,
-      user: authRequest.user,
-      device: authRequest.device,
+      ach_class: authRequest.ach_class || 'ppd',
+      user: enrichedUser as any,
+      device: { user_agent: ua, ip_address: ip },
     }
 
     console.log('Creating Plaid transfer authorization with request:', JSON.stringify(request, null, 2))
