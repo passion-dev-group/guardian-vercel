@@ -18,7 +18,7 @@ export const useMembersList = (circleId: string | undefined) => {
       setLoading(true);
       
       try {
-        console.log("Fetching members for circle:", circleId);
+        // console.log("Fetching members for circle:", circleId);
         
         // Get circle members without using a direct relationship to profiles
         const { data: circleMembers, error: membersError } = await supabase
@@ -34,7 +34,7 @@ export const useMembersList = (circleId: string | undefined) => {
           throw membersError;
         }
         
-        console.log("Number of members found:", circleMembers?.length || 0);
+        // console.log("Number of members found:", circleMembers?.length || 0);
         
         if (circleMembers && circleMembers.length > 0) {
           // Fetch profiles for each member separately
@@ -143,7 +143,7 @@ export const useMembersList = (circleId: string | undefined) => {
             } as Member;
           }));
           
-          console.log("Processed members data:", enrichedMembers);
+          // console.log("Processed members data:", enrichedMembers);
           setMembers(enrichedMembers.filter(Boolean) as Member[]);
         } else {
           console.log("No members found or empty data returned");

@@ -91,9 +91,9 @@ const CircleDetails = () => {
     };
   }, [circle, circleId]);
 
-  console.log("CircleDetails rendering with circleId:", circleId);
-  console.log("Circle data:", circle);
-  console.log("Is admin:", isAdmin);
+  // console.log("CircleDetails rendering with circleId:", circleId);
+  // console.log("Circle data:", circle);
+  // console.log("Is admin:", isAdmin);
   
   if (isCircleLoading) {
     return <LoadingSpinner fullScreen size="large" />;

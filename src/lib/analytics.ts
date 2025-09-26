@@ -33,7 +33,7 @@ export const trackEvent = async (eventName: string, properties: Record<string, a
   }
   
   // Log the event to the console for development
-  console.log(`[Analytics] Event: ${eventName}`, properties);
+  // console.log(`[Analytics] Event: ${eventName}`, properties);
   
   try {
     // Add timestamp to event properties
@@ -44,7 +44,7 @@ export const trackEvent = async (eventName: string, properties: Record<string, a
     };
     
     // Mock successful tracking without actually making a network request that might fail
-    console.log(`[Analytics] Sending tracking data for: ${eventName}`, eventProperties);
+    // console.log(`[Analytics] Sending tracking data for: ${eventName}`, eventProperties);
     
     // Contact integration specific events
     if (

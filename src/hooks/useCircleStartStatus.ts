@@ -80,7 +80,7 @@ export const useCircleStartStatus = (circleId: string | undefined) => {
         if (authorizedError) {
           throw authorizedError;
         }
-
+        // console.log("authorizedMembers", authorizedMembers);
         const contributedMembers = authorizedMembers?.length || 0;
 
         // Calculate contribution percentage
@@ -93,11 +93,11 @@ export const useCircleStartStatus = (circleId: string | undefined) => {
         const requiredAuthorized = Math.ceil(totalMembers * 0.8);
         const minMembers = circleDetails?.min_members ?? 0;
         const canStart = contributedMembers >= requiredAuthorized && 
-                         contributedMembers > minMembers &&
+                         contributedMembers >= minMembers &&
                          circle.status !== 'active' && 
                          circle.status !== 'started' &&
                          circle.status !== 'completed';
-
+        
         setStatus({
           canStart,
           contributionPercentage: Math.round(contributionPercentage),

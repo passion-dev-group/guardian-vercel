@@ -7,11 +7,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
-import { plaidService } from '@/lib/plaid';
+// All admin operations are routed via secure edge function to avoid RLS issues
 
 type RecurringRow = {
   id?: string;
   user_id: string;
+  user_display_name?: string | null;
+  user_email?: string | null;
   amount: number;
   frequency: string;
   day_of_week: number | null;
@@ -31,28 +33,11 @@ export default function AdminPage() {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['admin-test-clocks'],
     queryFn: async () => {
-      // Fetch both recurring tables and group by test_clock_id
-      const [circleRes, soloRes] = await Promise.all([
-        supabase.from('recurring_contributions').select('*').not('test_clock_id', 'is', null),
-        supabase.from('solo_savings_recurring_contributions').select('*').not('test_clock_id', 'is', null),
-      ]);
-
-      if (circleRes.error) throw circleRes.error;
-      if (soloRes.error) throw soloRes.error;
-
-      const rows: RecurringRow[] = [
-        ...(circleRes.data || []).map(r => ({ ...r, circle_id: r.circle_id })),
-        ...(soloRes.data || []).map(r => ({ ...r, goal_id: r.goal_id })),
-      ];
-
-      const groups = rows.reduce<Record<string, RecurringRow[]>>((acc, row) => {
-        const key = row.test_clock_id || 'unknown';
-        if (!acc[key]) acc[key] = [];
-        acc[key].push(row);
-        return acc;
-      }, {});
-
-      return groups;
+      const { data, error } = await supabase.functions.invoke('admin-recurring', {
+        body: { action: 'list' }
+      });
+      if (error) throw error;
+      return (data?.groups || {}) as Record<string, RecurringRow[]>;
     }
   });
 
@@ -65,10 +50,18 @@ export default function AdminPage() {
       target.setDate(now.getDate() + (advanceTimeByDays || 1));
       target.setHours(23, 59, 0, 0);
 
-      const res = await plaidService.advanceTestClock(testClockId, target.toISOString(), recurringTransferId);
+      const { data, error } = await supabase.functions.invoke('admin-recurring', {
+        body: {
+          action: 'advance_clock',
+          test_clock_id: testClockId,
+          virtual_time_iso: target.toISOString(),
+          recurring_transfer_id: recurringTransferId
+        }
+      });
+      if (error || !data?.advanced) throw new Error(data?.error || error?.message || 'Advance failed');
       toast.success('Clock advanced', { description: `${testClockId} → ${target.toISOString()}` });
       await refetch();
-      return res;
+      return data;
     } catch (e: any) {
       toast.error('Advance failed', { description: e?.message || 'Unknown error' });
     }
@@ -76,7 +69,10 @@ export default function AdminPage() {
 
   const handleSimulateStatus = async (transferId: string, status: 'posted' | 'pending' | 'cancelled' | 'failed' | 'returned') => {
     try {
-      await plaidService.simulateTransferStatus(transferId, status);
+      const { data, error } = await supabase.functions.invoke('admin-recurring', {
+        body: { action: 'simulate_status', transfer_id: transferId, status }
+      });
+      if (error || !data?.success) throw new Error(data?.error || error?.message || 'Simulation failed');
       toast.success('Simulation sent', { description: `${status} for ${transferId}` });
     } catch (e: any) {
       toast.error('Simulation failed', { description: e?.message || 'Unknown error' });
@@ -132,6 +128,9 @@ export default function AdminPage() {
                       <span className="font-medium">Recurring ID:</span> {row.plaid_recurring_transfer_id}
                     </div>
                     <div className="text-sm text-muted-foreground">
+                      <span className="font-medium">User:</span> {row.user_display_name || row.user_email || row.user_id}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
                       Amount: ${row.amount.toFixed(2)} · Freq: {row.frequency}
                     </div>
                     {row.next_contribution_date && (
@@ -139,17 +138,24 @@ export default function AdminPage() {
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  {/* <div className="flex items-center gap-2">
                     <Button variant="outline" onClick={() => handleAdvanceClock(clockId, row.plaid_recurring_transfer_id)}>Advance for this recurring</Button>
-                  </div>
+                  </div> */}
                 </div>
 
-                {/* Simulation controls for one-off transfer statuses if you have transfer ids */}
+                {/* Simulation controls: auto-fetch latest transfer_id via Plaid for this recurring */}
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {['pending','posted','failed','returned','cancelled'].map(s => (
-                    <Button key={s} size="sm" variant="ghost" onClick={() => {
-                      const transferId = prompt('Enter transfer_id to simulate status for:') || '';
-                      if (transferId) handleSimulateStatus(transferId, s as any);
+                  {['pending','posted','settled','funds_available','failed','returned','cancelled'].map(s => (
+                    <Button key={s} size="sm" variant="ghost" onClick={async () => {
+                      try {
+                        const { data, error } = await supabase.functions.invoke('admin-recurring', {
+                          body: { action: 'latest_transfer_for_recurring', recurring_transfer_id: row.plaid_recurring_transfer_id }
+                        });
+                        if (error || !data?.transfer_id) throw new Error(data?.error || error?.message || 'No transfer found');
+                        await handleSimulateStatus(data.transfer_id, s as any);
+                      } catch (e: any) {
+                        toast.error('Could not fetch latest transfer', { description: e?.message || 'Unknown error' });
+                      }
                     }}>{s}</Button>
                   ))}
                 </div>

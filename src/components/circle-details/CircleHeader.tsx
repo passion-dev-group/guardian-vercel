@@ -16,7 +16,7 @@ const CircleHeader = ({ circle }: CircleHeaderProps) => {
   const [totalFunds, setTotalFunds] = useState<number>(0);
   
   useEffect(() => {
-    console.log("CircleHeader mounted with circle:", circle);
+    // console.log("CircleHeader mounted with circle:", circle);
     
     const fetchMemberCount = async () => {
       try {
