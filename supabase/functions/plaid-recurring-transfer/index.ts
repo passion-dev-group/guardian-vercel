@@ -363,7 +363,7 @@ serve(async (req) => {
           console.log("creating test clock");
           try {
             // Set virtual time to a known Monday (like the Plaid example)
-            const virtualTime = new Date('2022-11-14T07:00:00-08:00').toISOString();
+            const virtualTime = new Date().toISOString();
             const testClockResponse = await plaidClient.sandboxTransferTestClockCreate({
               virtual_time: virtualTime
             });

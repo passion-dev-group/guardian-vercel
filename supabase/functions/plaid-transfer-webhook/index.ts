@@ -179,6 +179,7 @@ async function processTransferEvent(supabase: any, event: any) {
   try {
     const { transfer_id, event_type, failure_reason, timestamp, event_id } = event
     console.log(`Processing transfer event: ${transfer_id}, type: ${event_type}, event_id: ${event_id}`)
+    console.log('Full event object:', JSON.stringify(event, null, 2))
 
     // Find the transaction record that matches this transfer
     const { data: transaction, error: transactionError } = await supabase
@@ -187,16 +188,105 @@ async function processTransferEvent(supabase: any, event: any) {
       .eq('plaid_transfer_id', transfer_id)
       .single()
 
+    let transactionToUpdate = transaction
+
+    // If no existing transaction found, this might be from a recurring transfer
     if (transactionError || !transaction) {
-      console.error(`No transaction found for transfer ${transfer_id}`)
+      console.log(`No existing transaction found for transfer ${transfer_id}, checking if it's from a recurring transfer`)
+      
+      // Get transfer details from Plaid to find recurring_transfer_id
+      const plaidClientId = Deno.env.get('PLAID_CLIENT_ID')!
+      const plaidSecret = Deno.env.get('PLAID_SECRET')!
+      const plaidEnv = Deno.env.get('PLAID_ENV') || 'sandbox'
+      
+      const configuration = new Configuration({
+        basePath: PlaidEnvironments[plaidEnv],
+        baseOptions: {
+          headers: {
+            'PLAID-CLIENT-ID': plaidClientId,
+            'PLAID-SECRET': plaidSecret,
+          },
+        },
+      })
+      const plaidClient = new PlaidApi(configuration)
+
+      try {
+        // Get transfer details to find recurring_transfer_id
+        const transferResponse = await plaidClient.transferGet({
+          transfer_id: transfer_id
+        })
+        
+        const transfer = transferResponse.data.transfer
+        const recurringTransferId = transfer.recurring_transfer_id
+
+        if (recurringTransferId) {
+          console.log(`Found recurring transfer ${recurringTransferId} for transfer ${transfer_id}`)
+          
+          // Find the recurring contribution record
+          const { data: recurringContribution, error: recurringError } = await supabase
+            .from('recurring_contributions')
+            .select('*')
+            .eq('plaid_recurring_transfer_id', recurringTransferId)
+            .single()
+
+          if (recurringContribution && !recurringError) {
+            console.log(`Found recurring contribution for circle ${recurringContribution.circle_id}`)
+            
+            // Create a new circle_transactions record for this individual transfer
+            const { data: newTransaction, error: createError } = await supabase
+              .from('circle_transactions')
+              .insert({
+                circle_id: recurringContribution.circle_id,
+                user_id: recurringContribution.user_id,
+                amount: recurringContribution.amount,
+                type: 'contribution',
+                status: 'processing', // Will be updated based on event_type
+                transaction_date: new Date().toISOString(),
+                description: `Recurring contribution to circle`,
+                plaid_transfer_id: transfer_id,
+                plaid_authorization_id: transfer.authorization_id,
+                metadata: {
+                  recurring_transfer_id: recurringTransferId,
+                  transfer_type: 'recurring_contribution',
+                  created_from_webhook: true,
+                  webhook_event_id: event_id
+                }
+              })
+              .select()
+              .single()
+
+            if (createError) {
+              console.error(`Error creating transaction record for recurring transfer:`, createError)
+              return
+            }
+
+            transactionToUpdate = newTransaction
+            console.log(`Created new transaction ${newTransaction.id} for recurring transfer ${transfer_id}`)
+          } else {
+            console.error(`No recurring contribution found for recurring transfer ${recurringTransferId}`)
+            return
+          }
+        } else {
+          console.error(`No recurring transfer ID found for transfer ${transfer_id}`)
+          return
+        }
+      } catch (plaidError) {
+        console.error(`Error getting transfer details from Plaid:`, plaidError)
+        return
+      }
+    }
+
+    if (!transactionToUpdate) {
+      console.error(`No transaction to update for transfer ${transfer_id}`)
       return
     }
 
-    console.log(`Found transaction ${transaction.id} for transfer ${transfer_id}`)
+    console.log(`Found transaction ${transactionToUpdate.id} for transfer ${transfer_id}`)
 
     // Update transaction status based on Plaid event type
     let newStatus: string
     let metadata: any = {
+      ...transactionToUpdate.metadata, // Preserve existing metadata
       event_type: event_type,
       last_webhook_update: new Date().toISOString(),
       event_timestamp: timestamp,
@@ -204,7 +294,10 @@ async function processTransferEvent(supabase: any, event: any) {
       event_data: event
     }
 
-    switch (event_type) {
+    // Handle both old and new event type formats
+    const normalizedEventType = event_type?.replace('transfer.', '') || event_type
+    
+    switch (normalizedEventType) {
       case 'posted':
       case 'settled':
         newStatus = 'completed'
@@ -228,7 +321,8 @@ async function processTransferEvent(supabase: any, event: any) {
         newStatus = 'processing'
         break
       default:
-        console.log(`Unknown event type: ${event_type}, keeping current status`)
+        console.log(`Unknown event type: ${event_type} (normalized: ${normalizedEventType}), keeping current status`)
+        console.log('Available event properties:', Object.keys(event))
         return
     }
 
@@ -240,33 +334,33 @@ async function processTransferEvent(supabase: any, event: any) {
         processed_at: new Date().toISOString(),
         metadata: metadata
       })
-      .eq('id', transaction.id)
+      .eq('id', transactionToUpdate.id)
 
     if (updateError) {
       console.error('Error updating transaction:', updateError)
       return
     }
 
-    console.log(`Transaction ${transaction.id} updated to status: ${newStatus}`)
+    console.log(`Transaction ${transactionToUpdate.id} updated to status: ${newStatus}`)
 
     // Handle special cases
-    if (transaction.type === 'payout' && event_type === 'failed') {
-      console.log(`Payout failed for transaction ${transaction.id}, amount: ${transaction.amount}`)
+    if (transactionToUpdate.type === 'payout' && normalizedEventType === 'failed') {
+      console.log(`Payout failed for transaction ${transactionToUpdate.id}, amount: ${transactionToUpdate.amount}`)
       // Add any special handling for failed payouts here
     }
 
-    if (transaction.type === 'contribution' && event_type === 'failed') {
-      console.log(`Contribution failed for transaction ${transaction.id}, amount: ${transaction.amount}`)
+    if (transactionToUpdate.type === 'contribution' && normalizedEventType === 'failed') {
+      console.log(`Contribution failed for transaction ${transactionToUpdate.id}, amount: ${transactionToUpdate.amount}`)
       // Add any special handling for failed contributions here
     }
 
-    if (event_type === 'posted') {
-      console.log(`Transfer successful for transaction ${transaction.id}`)
+    if (normalizedEventType === 'posted') {
+      console.log(`Transfer successful for transaction ${transactionToUpdate.id}`)
       
       // If this is a contribution that was posted, check collection threshold
-      if (transaction.type === 'contribution') {
-        console.log(`Contribution posted for circle ${transaction.circle_id}, checking collection threshold`)
-        await checkCollectionThreshold(supabase, transaction.circle_id, transaction)
+      if (transactionToUpdate.type === 'contribution') {
+        console.log(`Contribution posted for circle ${transactionToUpdate.circle_id}, checking collection threshold`)
+        await checkCollectionThreshold(supabase, transactionToUpdate.circle_id, transactionToUpdate)
       }
     }
 

@@ -149,7 +149,8 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Circle is not eligible to start' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 });
     }
 
-    // Fetch authorized members
+    // Step 1: Get all authorized members in the circle
+    console.log(`Step 1: Fetching authorized members for circle ${circle_id}...`);
     const { data: authorizations, error: authError } = await svc
       .from('circle_ach_authorizations')
       .select('user_id, plaid_account_id, linked_bank_account_id')
@@ -164,20 +165,65 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: 'No authorized members found' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 });
     }
 
-    // Create or reuse a sandbox test clock
+    console.log(`Found ${authorizations.length} authorized members`);
+    // const startDate = new Date("2025-09-22");
+    const startDate = new Date();
+    // Step 2: Create a test clock for sandbox environment
     let testClockId: string | undefined;
     const plaidEnv = Deno.env.get('PLAID_ENV') || 'sandbox';
     if (plaidEnv === 'sandbox') {
-      const virtualTime = new Date().toISOString();
+      console.log('Step 2: Creating test clock for sandbox environment...');
+      const virtualTime = startDate.toISOString();
       try {
         const testClockResponse = await plaidClient.sandboxTransferTestClockCreate({ virtual_time: virtualTime });
         testClockId = testClockResponse.data.test_clock.test_clock_id;
-      } catch (_) {
+        console.log(`Test clock created: ${testClockId} with virtual time: ${virtualTime}`);
+      } catch (e) {
+        console.warn('Failed to create test clock:', e);
         // ignore; proceed without clock
       }
     }
+    // Build schedule
+    
+    startDate.setDate(startDate.getDate() + 1);
+    if (startDate.getDay() === 0) startDate.setDate(startDate.getDate() + 1);
+    if (startDate.getDay() === 6) startDate.setDate(startDate.getDate() + 2);
+    const interval_execution_day = startDate.getDay();
+    const schedule: any = { start_date: startDate.toISOString().split('T')[0] };
+    switch (circle.frequency) {
+      case 'weekly':
+        schedule.interval_unit = 'week';
+        schedule.interval_count = 1;
+        schedule.interval_execution_day = interval_execution_day;
+        break;
+      case 'biweekly':
+        schedule.interval_unit = 'week';
+        schedule.interval_count = 2;
+        schedule.interval_execution_day = interval_execution_day;
+        break;
+      case 'monthly':
+        schedule.interval_unit = 'month';
+        schedule.interval_count = 1;
+        schedule.interval_execution_day = interval_execution_day;
+        break;
+      case 'quarterly':
+        schedule.interval_unit = 'month';
+        schedule.interval_count = 3;
+        schedule.interval_execution_day = interval_execution_day;
+        break;
+      case 'yearly':
+        schedule.interval_unit = 'month';
+        schedule.interval_count = 12;
+        schedule.interval_execution_day = interval_execution_day;
+        break;
+      default:
+        schedule.interval_unit = 'week';
+        schedule.interval_count = 1;
+        schedule.interval_execution_day = interval_execution_day;
+    }
 
-    // Process members
+    // Step 3: Create recurring transfers with the test clock for all members
+    console.log('Step 3: Creating recurring transfers for authorized members...');
     const results: Array<{ user_id: string; success: boolean; error?: string; recurring_transfer_id?: string }> = [];
 
     for (const auth of authorizations) {
@@ -229,47 +275,9 @@ serve(async (req) => {
           try {
             const { data: authUser } = await svc.auth.admin.getUserById(auth.user_id);
             userEmail = authUser?.user?.email;
-          } catch (_) {}
+          } catch (_) { }
         }
 
-        // Build schedule
-        const startDate = new Date();
-        startDate.setDate(startDate.getDate() + 1);
-        if (startDate.getDay() === 0) startDate.setDate(startDate.getDate() + 1);
-        if (startDate.getDay() === 6) startDate.setDate(startDate.getDate() + 2);
-
-        const schedule: any = { start_date: startDate.toISOString().split('T')[0] };
-        switch (circle.frequency) {
-          case 'weekly':
-            schedule.interval_unit = 'week';
-            schedule.interval_count = 1;
-            schedule.interval_execution_day = 1;
-            break;
-          case 'biweekly':
-            schedule.interval_unit = 'week';
-            schedule.interval_count = 2;
-            schedule.interval_execution_day = 1;
-            break;
-          case 'monthly':
-            schedule.interval_unit = 'month';
-            schedule.interval_count = 1;
-            schedule.interval_execution_day = 1;
-            break;
-          case 'quarterly':
-            schedule.interval_unit = 'month';
-            schedule.interval_count = 3;
-            schedule.interval_execution_day = 1;
-            break;
-          case 'yearly':
-            schedule.interval_unit = 'month';
-            schedule.interval_count = 12;
-            schedule.interval_execution_day = 1;
-            break;
-          default:
-            schedule.interval_unit = 'week';
-            schedule.interval_count = 1;
-            schedule.interval_execution_day = 1;
-        }
 
         const idempotencyKey = `recurring-${auth.user_id}-${circle.id}-${Date.now()}`;
         const request: any = {
@@ -309,7 +317,7 @@ serve(async (req) => {
         const resp = await plaidClient.transferRecurringCreate(request);
         const recurring = resp.data.recurring_transfer;
 
-        const nextContributionDate = calculateNextContributionDate(circle.frequency);
+        const nextContributionDate = calculateNextContributionDate(circle.frequency, interval_execution_day);
 
         const { error: upsertError } = await svc
           .from('recurring_contributions')
@@ -337,6 +345,30 @@ serve(async (req) => {
     }
 
     const successful = results.filter(r => r.success);
+    console.log(`Created ${successful.length} successful recurring transfers out of ${results.length} attempts`);
+
+    // Step 4: Advance the test clock by 1 day to trigger first transfers
+    if (plaidEnv === 'sandbox' && testClockId && successful.length > 0) {
+      try {
+        console.log('Step 4: Advancing test clock by 1 day to trigger first transfers...');
+
+        // Get the current test clock time and advance by 1 day
+        const currentClockResponse = await plaidClient.sandboxTransferTestClockGet({ test_clock_id: testClockId });
+        const currentVirtualTime = new Date(currentClockResponse.data.test_clock.virtual_time);
+        
+        const advanceTime = new Date(currentVirtualTime);
+        advanceTime.setDate(currentVirtualTime.getDate() + 1);
+        advanceTime.setHours(23, 59, 0, 0); // End of day
+
+        await plaidClient.sandboxTransferTestClockAdvance({
+          test_clock_id: testClockId,
+          new_virtual_time: advanceTime.toISOString()
+        });
+      } catch (advanceError) {
+        console.warn('Failed to advance test clock:', advanceError);
+        // Continue even if advancement fails
+      }
+    }
 
     if (successful.length === 0) {
       return new Response(JSON.stringify({ error: 'Failed to create any recurring transfers', results }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 });

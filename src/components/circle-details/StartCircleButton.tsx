@@ -35,9 +35,9 @@ const StartCircleButton = ({
 }: StartCircleButtonProps) => {
   const [isStarting, setIsStarting] = useState(false);
   const { toast } = useToast();
-  
+  const canStart = true;
   const {
-    canStart,
+    // canStart,
     contributionPercentage,
     totalMembers,
     contributedMembers,

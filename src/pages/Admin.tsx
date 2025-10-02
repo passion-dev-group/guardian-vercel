@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 // All admin operations are routed via secure edge function to avoid RLS issues
 
@@ -24,11 +25,15 @@ type RecurringRow = {
   created_at?: string;
   updated_at?: string;
   circle_id?: string;
+  circle_name?: string | null;
   goal_id?: string;
 };
 
 export default function AdminPage() {
-  const [advanceTimeByDays, setAdvanceTimeByDays] = useState<number>(7);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [currentClockId, setCurrentClockId] = useState<string>('');
+  const [currentClockTime, setCurrentClockTime] = useState<Date | null>(null);
+  const [modalAdvanceDays, setModalAdvanceDays] = useState<number>(1);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['admin-test-clocks'],
@@ -43,11 +48,48 @@ export default function AdminPage() {
 
   const clockIds = useMemo(() => Object.keys(data || {}), [data]);
 
+  const openAdvanceModal = async (testClockId: string) => {
+    try {
+      setCurrentClockId(testClockId);
+      setModalAdvanceDays(1);
+      setIsModalOpen(true);
+      
+      // Fetch current test clock time
+      const { data, error } = await supabase.functions.invoke('admin-recurring', {
+        body: {
+          action: 'get_clock_time',
+          test_clock_id: testClockId
+        }
+      });
+      
+      if (error || !data?.virtual_time) {
+        console.warn('Could not fetch clock time, using current time');
+        setCurrentClockTime(new Date());
+      } else {
+        setCurrentClockTime(new Date(data.virtual_time));
+      }
+    } catch (e) {
+      console.warn('Error fetching clock time:', e);
+      setCurrentClockTime(new Date());
+    }
+  };
+
+  const closeAdvanceModal = () => {
+    setIsModalOpen(false);
+    setCurrentClockId('');
+    setCurrentClockTime(null);
+    setModalAdvanceDays(1);
+  };
+
   const handleAdvanceClock = async (testClockId: string, recurringTransferId?: string) => {
     try {
-      const now = new Date();
-      const target = new Date(now);
-      target.setDate(now.getDate() + (advanceTimeByDays || 1));
+      if (!currentClockTime) {
+        throw new Error('No clock time available');
+      }
+      
+      // Calculate target time based on stored test clock's current time + advance days
+      const target = new Date(currentClockTime);
+      target.setDate(currentClockTime.getDate() + (modalAdvanceDays || 1));
       target.setHours(23, 59, 0, 0);
 
       const { data, error } = await supabase.functions.invoke('admin-recurring', {
@@ -61,6 +103,7 @@ export default function AdminPage() {
       if (error || !data?.advanced) throw new Error(data?.error || error?.message || 'Advance failed');
       toast.success('Clock advanced', { description: `${testClockId} → ${target.toISOString()}` });
       await refetch();
+      closeAdvanceModal();
       return data;
     } catch (e: any) {
       toast.error('Advance failed', { description: e?.message || 'Unknown error' });
@@ -87,11 +130,7 @@ export default function AdminPage() {
       </div>
 
       <Card className="p-4">
-        <div className="flex items-end gap-4">
-          <div className="grid gap-2">
-            <Label>Advance by days</Label>
-            <Input type="number" value={advanceTimeByDays} onChange={e => setAdvanceTimeByDays(parseInt(e.target.value || '0'))} className="w-40" />
-          </div>
+        <div className="flex items-center gap-4">
           <Button variant="secondary" onClick={() => refetch()} disabled={isLoading}>Refresh</Button>
         </div>
       </Card>
@@ -111,10 +150,12 @@ export default function AdminPage() {
         <Card key={clockId} className="p-4 space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="font-medium">Test Clock</h2>
+              <h2 className="font-medium">
+                {(data?.[clockId]?.[0]?.circle_name) || 'Test Clock'}
+              </h2>
               <p className="text-sm text-muted-foreground">{clockId}</p>
             </div>
-            <Button onClick={() => handleAdvanceClock(clockId)}>Advance Clock</Button>
+            <Button onClick={() => openAdvanceModal(clockId)}>Advance Clock</Button>
           </div>
 
           <Separator />
@@ -164,6 +205,42 @@ export default function AdminPage() {
           </div>
         </Card>
       ))}
+
+      {/* Advance Clock Modal */}
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Advance Test Clock</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label className="text-sm font-medium">Current Clock Time</Label>
+              <p className="text-sm text-muted-foreground mt-1">
+                {currentClockTime ? currentClockTime.toLocaleString() : 'Loading...'}
+              </p>
+            </div>
+            <div>
+              <Label htmlFor="advance-days">Advance by (days)</Label>
+              <Input
+                id="advance-days"
+                type="number"
+                value={modalAdvanceDays}
+                onChange={(e) => setModalAdvanceDays(parseInt(e.target.value) || 1)}
+                min="1"
+                className="mt-1"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeAdvanceModal}>
+              Cancel
+            </Button>
+            <Button onClick={() => handleAdvanceClock(currentClockId)}>
+              Advance Clock
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

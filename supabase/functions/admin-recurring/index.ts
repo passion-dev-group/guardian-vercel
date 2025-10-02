@@ -93,11 +93,27 @@ serve(async (req) => {
         }
       }
 
-      // Attach user_display_name to rows
+      // Fetch circle names for circle_id
+      const circleIds = Array.from(new Set(allRows.map(r => r.circle_id).filter(Boolean)));
+      let circleMap: Record<string, { name: string | null }> = {};
+      if (circleIds.length > 0) {
+        const { data: circles, error: circlesError } = await svc
+          .from('circles')
+          .select('id, name')
+          .in('id', circleIds);
+        if (!circlesError && Array.isArray(circles)) {
+          for (const c of circles) {
+            circleMap[c.id] = { name: c.name || null };
+          }
+        }
+      }
+
+      // Attach user_display_name and circle_name to rows
       const rows = allRows.map(r => ({
         ...r,
         user_display_name: profileMap[r.user_id]?.display_name || null,
         user_email: profileMap[r.user_id]?.email || null,
+        circle_name: circleMap[r.circle_id]?.name || null,
       }));
 
       const groups: Record<string, any[]> = {};
@@ -139,18 +155,146 @@ serve(async (req) => {
           test_clock_id,
           new_virtual_time: virtualTimeToSend,
         } as any);
+npx 
+        console.log('Test clock advanced successfully');
 
-        // Optionally check recurring transfer
+        // After advancing the clock, trigger webhooks to notify backend about new transfers
+        // In sandbox mode, we need to manually trigger webhook processing
+        const webhookResults: any[] = [];
+        
+        try {
+          // Get all recurring transfers associated with this test clock
+          const [circleRecurring, soloRecurring] = await Promise.all([
+            svc.from('recurring_contributions').select('*').eq('test_clock_id', test_clock_id),
+            svc.from('solo_savings_recurring_contributions').select('*').eq('test_clock_id', test_clock_id),
+          ]);
+
+          const allRecurringTransfers: any[] = [
+            ...(circleRecurring.data || []),
+            ...(soloRecurring.data || []),
+          ];
+
+          console.log(`Found ${allRecurringTransfers.length} recurring transfers for test_clock_id: ${test_clock_id}`);
+
+          // For each recurring transfer, get transfer IDs and trigger webhooks
+          for (const recurringRecord of allRecurringTransfers) {
+            const recurringTransferId = recurringRecord.plaid_recurring_transfer_id;
+            
+            try {
+              // Get recurring transfer details which includes transfer_ids field
+              const recurringDetails = await plaid.transferRecurringGet({ recurring_transfer_id: recurringTransferId } as any);
+              const transferIds = recurringDetails.data.recurring_transfer.transfer_ids || [];
+
+              console.log(`Found ${transferIds.length} transfer IDs for recurring_transfer_id: ${recurringTransferId}`);
+
+              // Check which transfers are new (don't exist in database yet)
+              const isCircle = recurringRecord.circle_id !== undefined;
+              const newTransferIds: string[] = [];
+
+              for (const transferId of transferIds) {
+                let exists = false;
+                
+                if (isCircle) {
+                  const { data } = await svc
+                    .from('circle_transactions')
+                    .select('id')
+                    .eq('plaid_transfer_id', transferId)
+                    .maybeSingle();
+                  exists = !!data;
+                } else {
+                  const { data } = await svc
+                    .from('solo_savings_transactions')
+                    .select('id')
+                    .eq('plaid_transfer_id', transferId)
+                    .maybeSingle();
+                  exists = !!data;
+                }
+
+                if (!exists) {
+                  newTransferIds.push(transferId);
+                  console.log(`Transfer ${transferId} is new, will send webhook`);
+                } else {
+                  console.log(`Transfer ${transferId} already exists, skipping webhook`);
+                }
+              }
+
+              console.log(`${newTransferIds.length} new transfers found out of ${transferIds.length} total`);
+
+              // Only send webhooks for new transfers
+              for (const transferId of newTransferIds) {
+                try {
+                  // Call the webhook handler to process this transfer
+                  const webhookUrl = `${supabaseUrl}/functions/v1/plaid-transfer-webhook`;
+                  
+                  const webhookPayload = {
+                    webhook_type: 'TRANSFER',
+                    webhook_code: 'TRANSFER_EVENTS_UPDATE',
+                    environment: Deno.env.get('PLAID_ENV') || 'sandbox',
+                  };
+
+                  console.log(`Triggering webhook for new transfer ${transferId}`);
+                  
+                  const webhookResponse = await fetch(webhookUrl, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(webhookPayload),
+                  });
+
+                  if (webhookResponse.ok) {
+                    webhookResults.push({ 
+                      transfer_id: transferId, 
+                      status: 'webhook_sent',
+                      recurring_transfer_id: recurringTransferId 
+                    });
+                    console.log(`Webhook sent successfully for transfer ${transferId}`);
+                  } else {
+                    const errorText = await webhookResponse.text();
+                    console.error(`Webhook failed for transfer ${transferId}:`, errorText);
+                    webhookResults.push({ 
+                      transfer_id: transferId, 
+                      status: 'webhook_failed',
+                      error: errorText 
+                    });
+                  }
+                } catch (webhookError: any) {
+                  console.error(`Error sending webhook for transfer ${transferId}:`, webhookError);
+                  webhookResults.push({ 
+                    transfer_id: transferId, 
+                    status: 'webhook_error',
+                    error: webhookError.message 
+                  });
+                }
+              }
+            } catch (transferError: any) {
+              console.error(`Error processing recurring transfer ${recurringTransferId}:`, transferError);
+            }
+          }
+        } catch (fetchError: any) {
+          console.error('Error fetching transfers and sending webhooks:', fetchError);
+          // Don't fail the entire request if webhook sending fails
+        }
+
+        // Optionally check recurring transfer details
+        let recurringDetails = null;
         if (recurring_transfer_id) {
           try {
             const details = await plaid.transferRecurringGet({ recurring_transfer_id });
-            return new Response(JSON.stringify({ success: true, advanced: true, recurring: details.data.recurring_transfer }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+            recurringDetails = details.data.recurring_transfer;
           } catch (checkErr) {
             console.warn('advance_clock: transferRecurringGet failed', checkErr);
           }
         }
 
-        return new Response(JSON.stringify({ success: true, advanced: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        return new Response(JSON.stringify({ 
+          success: true, 
+          advanced: true, 
+          webhooks_sent: webhookResults,
+          webhook_count: webhookResults.length,
+          recurring: recurringDetails,
+          message: `Test clock advanced and ${webhookResults.length} webhook(s) triggered`
+        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       } catch (err: any) {
         console.error('advance_clock error', {
           test_clock_id,
@@ -210,6 +354,33 @@ serve(async (req) => {
       } catch (err: any) {
         return new Response(JSON.stringify({ 
           error: 'Failed to fetch latest transfer for recurring',
+          details: err?.response?.data || err?.message || String(err)
+        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 });
+      }
+    }
+
+    if (action === 'get_clock_time') {
+      const { test_clock_id } = body;
+      if (!test_clock_id) {
+        return new Response(JSON.stringify({ error: 'test_clock_id is required' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 });
+      }
+
+      try {
+        const current = await plaid.sandboxTransferTestClockGet({ test_clock_id } as any);
+        const currentVirtual = new Date(current.data.test_clock.virtual_time);
+        
+        return new Response(JSON.stringify({ 
+          success: true, 
+          virtual_time: currentVirtual.toISOString(),
+          test_clock: current.data.test_clock
+        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      } catch (err: any) {
+        console.error('get_clock_time error', {
+          test_clock_id,
+          plaid_error: err?.response?.data || err?.message || String(err)
+        });
+        return new Response(JSON.stringify({ 
+          error: 'Failed to get test clock time',
           details: err?.response?.data || err?.message || String(err)
         }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 });
       }
