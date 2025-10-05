@@ -4,7 +4,6 @@ import { useSavingsGoals } from '@/hooks/useSavingsGoals';
 import { useSoloSavingsGoals } from '@/hooks/useSoloSavingsGoals';
 import PageLayout from '@/components/PageLayout';
 import GoalCard from '@/components/savings/GoalCard';
-import GoalForm from '@/components/savings/GoalForm';
 import SoloGoalForm from '@/components/savings/SoloGoalForm';
 import CircleCard from '@/components/dashboard/CircleCard';
 import { supabase } from '@/lib/supabase';
@@ -30,7 +29,6 @@ const SavingsGoals = () => {
   const [userCircles, setUserCircles] = useState<Circle[]>([]);
   const [isLoadingUserCircles, setIsLoadingUserCircles] = useState(true);
 
-  const [isNewCircleGoalDialogOpen, setIsNewCircleGoalDialogOpen] = useState(false);
   const [isNewSoloGoalDialogOpen, setIsNewSoloGoalDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
   
@@ -139,10 +137,6 @@ const SavingsGoals = () => {
     fetchUserCircles();
   }, [user?.id]);
   
-  const handleCreateCircleGoalSuccess = () => {
-    setIsNewCircleGoalDialogOpen(false);
-  };
-  
   const handleCreateSoloGoalSuccess = () => {
     setIsNewSoloGoalDialogOpen(false);
   };
@@ -244,17 +238,12 @@ const SavingsGoals = () => {
           </div>
           
           <div className="flex flex-col w-full sm:w-auto sm:flex-row gap-2 sm:gap-4">          
-            <Dialog open={isNewCircleGoalDialogOpen} onOpenChange={setIsNewCircleGoalDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" className="w-full sm:w-auto">
-                  <Users className="h-4 w-4 mr-2" />
-                  New Circle Goal
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-md">
-                <GoalForm onComplete={handleCreateCircleGoalSuccess} />
-              </DialogContent>
-            </Dialog>
+            <Link to="/create-circle">
+              <Button variant="outline" className="w-full sm:w-auto">
+                <Users className="h-4 w-4 mr-2" />
+                New Circle Goal
+              </Button>
+            </Link>
             <Dialog open={isNewSoloGoalDialogOpen} onOpenChange={setIsNewSoloGoalDialogOpen}>
               <DialogTrigger asChild>
                 <Button className="w-full sm:w-auto">
@@ -500,11 +489,10 @@ const SavingsGoals = () => {
                       Join or create a savings circle to start saving together with others.
                     </p>
                     <div className="flex justify-center gap-4 mt-4">
-                      <Button 
-                        variant="outline"
-                        onClick={() => setIsNewCircleGoalDialogOpen(true)}
-                      >
-                        Create Circle Goal
+                      <Button variant="outline" asChild>
+                        <Link to="/create-circle">
+                          Create Circle Goal
+                        </Link>
                       </Button>
                       <Button asChild>
                         <Link to="/join-circle">
@@ -537,10 +525,12 @@ const SavingsGoals = () => {
                 <Button 
                   size="lg" 
                   variant="outline"
-                  onClick={() => setIsNewCircleGoalDialogOpen(true)}
+                  asChild
                 >
-                  <Users className="h-4 w-4 mr-2" />
-                  Create Circle Goal
+                  <Link to="/create-circle">
+                    <Users className="h-4 w-4 mr-2" />
+                    Create Circle Goal
+                  </Link>
                 </Button>
               </div>
             </div>

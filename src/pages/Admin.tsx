@@ -45,7 +45,7 @@ export default function AdminPage() {
       return (data?.groups || {}) as Record<string, RecurringRow[]>;
     }
   });
-
+  console.log(data);
   const clockIds = useMemo(() => Object.keys(data || {}), [data]);
 
   const openAdvanceModal = async (testClockId: string) => {
@@ -53,7 +53,7 @@ export default function AdminPage() {
       setCurrentClockId(testClockId);
       setModalAdvanceDays(1);
       setIsModalOpen(true);
-      
+
       // Fetch current test clock time
       const { data, error } = await supabase.functions.invoke('admin-recurring', {
         body: {
@@ -61,7 +61,7 @@ export default function AdminPage() {
           test_clock_id: testClockId
         }
       });
-      
+
       if (error || !data?.virtual_time) {
         console.warn('Could not fetch clock time, using current time');
         setCurrentClockTime(new Date());
@@ -83,25 +83,18 @@ export default function AdminPage() {
 
   const handleAdvanceClock = async (testClockId: string, recurringTransferId?: string) => {
     try {
-      if (!currentClockTime) {
-        throw new Error('No clock time available');
-      }
-      
-      // Calculate target time based on stored test clock's current time + advance days
-      const target = new Date(currentClockTime);
-      target.setDate(currentClockTime.getDate() + (modalAdvanceDays || 1));
-      target.setHours(23, 59, 0, 0);
-
       const { data, error } = await supabase.functions.invoke('admin-recurring', {
         body: {
           action: 'advance_clock',
           test_clock_id: testClockId,
-          virtual_time_iso: target.toISOString(),
+          days_to_advance: modalAdvanceDays || 1,
           recurring_transfer_id: recurringTransferId
         }
       });
       if (error || !data?.advanced) throw new Error(data?.error || error?.message || 'Advance failed');
-      toast.success('Clock advanced', { description: `${testClockId} → ${target.toISOString()}` });
+      toast.success('Clock advanced', {
+        description: `Advanced ${data.days_advanced} day(s), ${data.webhook_count || 0} webhook(s) sent`
+      });
       await refetch();
       closeAdvanceModal();
       return data;
@@ -122,8 +115,20 @@ export default function AdminPage() {
     }
   };
 
+  const onClickSetContributed = async (circleId: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('admin-recurring', {
+        body: { action: 'set_contributed', circle_id: circleId }
+      });
+      if (error || !data?.success) throw new Error(data?.error || error?.message || 'Set contributed failed');
+      toast.success('Set contributed', { description: `Set contributed for ${circleId}` });
+    } catch (e: any) {
+      toast.error('Set contributed failed', { description: e?.message || 'Unknown error' });
+    }
+  };
+
   return (
-    <div className="max-w-5xl mx-auto p-6 space-y-6">
+    <div className="w-[768px] mx-auto p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Sandbox Admin - Test Clocks</h1>
         <p className="text-sm text-muted-foreground">Manage Plaid sandbox test clocks and recurring transfers. Not linked in navigation.</p>
@@ -156,6 +161,8 @@ export default function AdminPage() {
               <p className="text-sm text-muted-foreground">{clockId}</p>
             </div>
             <Button onClick={() => openAdvanceModal(clockId)}>Advance Clock</Button>
+            <Separator orientation="vertical" />
+            <Button onClick={() => onClickSetContributed(data?.[clockId]?.[0]?.circle_id)}>Set Contributed</Button>
           </div>
 
           <Separator />
@@ -185,7 +192,7 @@ export default function AdminPage() {
                 </div>
 
                 {/* Simulation controls: auto-fetch latest transfer_id via Plaid for this recurring */}
-                <div className="mt-3 flex flex-wrap gap-2">
+                {/* <div className="mt-3 flex flex-wrap gap-2">
                   {['pending','posted','settled','funds_available','failed','returned','cancelled'].map(s => (
                     <Button key={s} size="sm" variant="ghost" onClick={async () => {
                       try {
@@ -199,7 +206,7 @@ export default function AdminPage() {
                       }
                     }}>{s}</Button>
                   ))}
-                </div>
+                </div> */}
               </div>
             ))}
           </div>

@@ -402,7 +402,7 @@ class PlaidService {
         country: string;
       };
     };
-    device: {
+    device?: {
       user_agent: string;
       ip_address: string;
     };
@@ -558,6 +558,37 @@ class PlaidService {
     try {
       const { data: { session } } = await supabase.auth.getSession();
 
+      // Fetch user profile for Plaid user data
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', depositData.user_id)
+        .single();
+
+      if (!profile) {
+        throw new Error('User profile not found');
+      }
+
+      // Get user email from auth
+      const { data: { user } } = await supabase.auth.getUser();
+      const userEmail = user?.email || 'no-email@example.com';
+
+      // Build user data for Plaid
+      const userData: any = {
+        legal_name: profile.display_name || 'User',
+        email_address: userEmail,
+        address: {
+          country: profile.address_country || 'US',
+        },
+      };
+
+      // Add optional fields only if they exist
+      if (profile.phone) userData.phone_number = profile.phone;
+      if (profile.address_street) userData.address.street = profile.address_street;
+      if (profile.address_city) userData.address.city = profile.address_city;
+      if (profile.address_state) userData.address.region = profile.address_state;
+      if (profile.address_zip) userData.address.postal_code = profile.address_zip;
+
       // First, create a transfer authorization
       const authResponse = await this.createTransferAuthorization({
         access_token: depositData.access_token,
@@ -565,55 +596,24 @@ class PlaidService {
         type: 'debit',
         amount: depositData.amount.toFixed(2),
         ach_class: 'ppd',
-        user: {
-          // We'll get these from the edge function
-          legal_name: 'placeholder',
-          phone_number: 'placeholder',
-          email_address: 'placeholder',
-          address: {
-            street: 'placeholder',
-            city: 'placeholder',
-            region: 'placeholder',
-            postal_code: 'placeholder',
-            country: 'US',
-          },
-        },
-        device: {
-          user_agent: 'Savings App/1.0',
-          ip_address: '127.0.0.1',
-        },
+        user: userData,
+        
       });
 
       if (!authResponse.success) {
         throw new Error(authResponse.error || 'Transfer authorization failed');
       }
-
-      // Then create the actual transfer
+      const description = depositData.description?.length > 15 ? depositData.description.substring(0, 15) : 'Savings Goal Deposit';
+      // Then create the actual transfer (reuse userData)
       const transferResponse = await this.createTransfer({
         access_token: depositData.access_token,
         account_id: depositData.account_id,
         authorization_id: authResponse.authorization_id,
         type: 'debit',
         amount: depositData.amount.toFixed(2),
-        description: depositData.description || 'Savings Goal Deposit',
+        description: description,
         ach_class: 'ppd',
-        user: {
-          // We'll get these from the edge function
-          legal_name: 'placeholder',
-          phone_number: 'placeholder',
-          email_address: 'placeholder',
-          address: {
-            street: 'placeholder',
-            city: 'placeholder',
-            state: 'placeholder',
-            zip: 'placeholder',
-            country: 'US',
-          },
-        },
-        device: {
-          user_agent: 'Savings App/1.0',
-          ip_address: '127.0.0.1',
-        },
+        user: userData,
       });
 
       if (!transferResponse.success) {
@@ -628,9 +628,9 @@ class PlaidService {
           user_id: depositData.user_id,
           amount: depositData.amount,
           type: 'manual_deposit',
-          status: 'processing',
+          status: 'pending',
           transaction_date: new Date().toISOString(),
-          description: depositData.description || 'Manual Deposit',
+          description: description,
           plaid_transfer_id: transferResponse.transfer_id,
           plaid_authorization_id: authResponse.authorization_id,
         })

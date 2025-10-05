@@ -27,6 +27,16 @@ verify_jwt = false  # Webhooks don't have JWT
 max_retries = 3
 timeout_seconds = 30
 
+[functions.do-daily-check]
+verify_jwt = false  # Cron job doesn't have JWT
+max_retries = 2
+timeout_seconds = 60
+
+[functions.process-solo-daily-transfers]
+verify_jwt = false  # Cron job doesn't have JWT
+max_retries = 2
+timeout_seconds = 60
+
 # Environment variables required by the functions
 [env]
 PLAID_CLIENT_ID = "required"
@@ -42,6 +52,18 @@ schedule = "@daily"
 function = "plaid-recurring-transfer"
 payload = { type = "recurring_transfer" }
 
+[[cron]]
+name = "daily-cycle-check"
+schedule = "@daily"
+function = "do-daily-check"
+payload = { }
+
+[[cron]]
+name = "process-solo-daily-transfers"
+schedule = "@daily"
+function = "process-solo-daily-transfers"
+payload = { }
+
 # Function descriptions
 [metadata]
 plaid-recurring-transfer = "Handles all recurring transfers for both circles and savings goals"
@@ -49,3 +71,5 @@ process-circle-payment = "Handles one-time circle contributions"
 plaid-transfer = "Core Plaid transfer functionality"
 plaid-transfer-authorization = "Core Plaid authorization functionality"
 plaid-transfer-webhook = "Handles Plaid transfer webhooks"
+do-daily-check = "Daily check for circles with ended cycles and process payouts"
+process-solo-daily-transfers = "Daily cron job to process solo goal daily transfers (Plaid doesn't support daily recurring)"

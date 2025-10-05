@@ -106,7 +106,7 @@ serve(async (req) => {
 
 async function handleTransferWebhook(webhookData: PlaidTransferWebhook) {
   try {
-    console.log(`Processing transfer webhook: ${webhookData.webhook_code}`)
+    console.log(`🔔 Step 1: Wake-up signal received - ${webhookData.webhook_code}`)
 
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
@@ -134,21 +134,36 @@ async function handleTransferWebhook(webhookData: PlaidTransferWebhook) {
     })
     const client = new PlaidApi(configuration)
 
-    // Sync transfer events to get the actual transfer details
-    console.log('Syncing transfer events from Plaid...')
+    // Step 2: Pull the facts - sync transfer events
+    console.log('📥 Step 2: Pulling facts from /transfer/event/sync...')
     
-    // Get the last processed event_id from our database, or start from 0
-    const { data: lastEvent } = await supabase
-      .from('circle_transactions')
-      .select('metadata')
-      .not('metadata->plaid_event_id', 'is', null)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single()
+    // Get the last processed event_id from our database (check both tables)
+    const [circleLastEvent, soloLastEvent] = await Promise.all([
+      supabase
+        .from('circle_transactions')
+        .select('metadata->plaid_event_id')
+        .not('metadata->plaid_event_id', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('solo_savings_transactions')
+        .select('metadata->plaid_event_id')
+        .not('metadata->plaid_event_id', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    ]);
     
     let afterId = 0 // Default to start from beginning
-    if (lastEvent && lastEvent.metadata && lastEvent.metadata.plaid_event_id) {
-      afterId = parseInt(lastEvent.metadata.plaid_event_id.toString(), 10)
+    const circleEventId = circleLastEvent?.data?.metadata?.plaid_event_id;
+    const soloEventId = soloLastEvent?.data?.metadata?.plaid_event_id;
+    
+    if (circleEventId || soloEventId) {
+      afterId = Math.max(
+        circleEventId ? parseInt(circleEventId.toString(), 10) : 0,
+        soloEventId ? parseInt(soloEventId.toString(), 10) : 0
+      );
       console.log(`Syncing events after event_id: ${afterId}`)
     } else {
       console.log('No previous events found, syncing from beginning')
@@ -163,11 +178,186 @@ async function handleTransferWebhook(webhookData: PlaidTransferWebhook) {
       return
     }
 
-    console.log(`Processing ${syncResponse.data.transfer_events.length} transfer events`)
+    const allEvents = syncResponse.data.transfer_events;
+    console.log(`📊 Received ${allEvents.length} transfer events`)
 
-    // Process each transfer event
-    for (const event of syncResponse.data.transfer_events) {
-      await processTransferEvent(supabase, event)
+    // Save the highest event_id for next sync
+    const highestEventId = Math.max(...allEvents.map(e => e.event_id));
+    console.log(`💾 Highest event_id: ${highestEventId}`)
+
+    // Step 3: Identify "today's contributions" - filter to new origination events
+    console.log('🔍 Step 3: Identifying new origination events...')
+    
+    // Group events by transfer_id to find first event for each transfer
+    const transferEventsMap = new Map<string, any[]>();
+    for (const event of allEvents) {
+      const transferId = event.transfer_id;
+      if (!transferEventsMap.has(transferId)) {
+        transferEventsMap.set(transferId, []);
+      }
+      transferEventsMap.get(transferId)!.push(event);
+    }
+
+    const newOriginationEvents: any[] = [];
+    
+    for (const [transferId, events] of transferEventsMap.entries()) {
+      // Sort events by event_id to get chronological order
+      events.sort((a, b) => a.event_id - b.event_id);
+      
+      // Check if this is a new transfer (not in database yet)
+      const [circleExists, soloExists] = await Promise.all([
+        supabase
+          .from('circle_transactions')
+          .select('id')
+          .eq('plaid_transfer_id', transferId)
+          .maybeSingle(),
+        supabase
+          .from('solo_savings_transactions')
+          .select('id')
+          .eq('plaid_transfer_id', transferId)
+          .maybeSingle()
+      ]);
+
+      const existsInDb = circleExists.data || soloExists.data;
+
+      if (!existsInDb) {
+        // This is a new transfer - find the first pending or posted event
+        const originationEvent = events.find(e => 
+          e.event_type === 'pending' || e.event_type === 'posted'
+        );
+        
+        if (originationEvent) {
+          newOriginationEvents.push(originationEvent);
+          console.log(`✨ New transfer detected: ${transferId} (${originationEvent.event_type})`);
+        }
+      } else {
+        // Existing transfer - process all status update events
+        for (const event of events) {
+          await processTransferEvent(supabase, event);
+        }
+      }
+    }
+
+    console.log(`🆕 Found ${newOriginationEvents.length} new origination events`);
+
+    // Step 4: Map to recurring schedule & Step 5: Count & attribute
+    console.log('🔗 Step 4 & 5: Mapping to recurring schedules and creating transactions...')
+    
+    const recurringStats = new Map<string, number>();
+
+    for (const event of newOriginationEvents) {
+      try {
+        // Fetch transfer details to get full context
+        const transferResponse = await client.transferGet({ transfer_id: event.transfer_id });
+        const transfer = transferResponse.data.transfer;
+        
+        console.log(`📄 Transfer details for ${event.transfer_id}:`, {
+          amount: transfer.amount,
+          status: transfer.status,
+          recurring_transfer_id: transfer.recurring_transfer_id,
+          created: transfer.created
+        });
+
+        const recurringTransferId = transfer.recurring_transfer_id;
+
+        if (!recurringTransferId) {
+          console.log(`⚠️ Transfer ${event.transfer_id} is not linked to a recurring schedule, skipping`);
+          continue;
+        }
+
+        // Count this contribution
+        recurringStats.set(
+          recurringTransferId, 
+          (recurringStats.get(recurringTransferId) || 0) + 1
+        );
+
+        // Find the recurring contribution in our database
+        const [circleRecurring, soloRecurring] = await Promise.all([
+          supabase
+            .from('recurring_contributions')
+            .select('*')
+            .eq('plaid_recurring_transfer_id', recurringTransferId)
+            .maybeSingle(),
+          supabase
+            .from('solo_savings_recurring_contributions')
+            .select('*')
+            .eq('plaid_recurring_transfer_id', recurringTransferId)
+            .maybeSingle()
+        ]);
+
+        const recurringRecord = circleRecurring.data || soloRecurring.data;
+        const isCircle = !!circleRecurring.data;
+
+        if (!recurringRecord) {
+          console.log(`⚠️ No recurring contribution found for ${recurringTransferId}`);
+          continue;
+        }
+
+        // Create transaction record
+        const transactionData: any = {
+          user_id: recurringRecord.user_id,
+          amount: transfer.amount,
+          status: transfer.status || 'pending',
+          transaction_date: transfer.created || new Date().toISOString(),
+          description: `Recurring contribution`,
+          metadata: {
+            recurring_transfer_id: recurringTransferId,
+            plaid_transfer_id: event.transfer_id,
+            plaid_authorization_id: transfer.authorization_id,
+            plaid_event_id: event.event_id,
+            transfer_type: 'recurring_contribution',
+            event_type: event.event_type,
+            webhook_timestamp: event.timestamp,
+          }
+        };
+
+        if (isCircle) {
+          transactionData.circle_id = recurringRecord.circle_id;
+          transactionData.type = 'contribution';
+          transactionData.plaid_transfer_id = event.transfer_id;
+          transactionData.plaid_authorization_id = transfer.authorization_id;
+
+          const { data: newTransaction, error } = await supabase
+            .from('circle_transactions')
+            .insert(transactionData)
+            .select()
+            .single();
+
+          if (error) {
+            console.error(`❌ Error creating circle transaction:`, error);
+          } else {
+            console.log(`✅ Created circle transaction ${newTransaction.id} for transfer ${event.transfer_id}`);
+          }
+        } else {
+          transactionData.goal_id = recurringRecord.goal_id;
+          transactionData.type = 'recurring_contribution';
+          transactionData.plaid_transfer_id = event.transfer_id;
+          transactionData.plaid_authorization_id = transfer.authorization_id;
+
+          const { data: newTransaction, error } = await supabase
+            .from('solo_savings_transactions')
+            .insert(transactionData)
+            .select()
+            .single();
+
+          if (error) {
+            console.error(`❌ Error creating solo savings transaction:`, error);
+          } else {
+            console.log(`✅ Created solo savings transaction ${newTransaction.id} for transfer ${event.transfer_id}`);
+          }
+        }
+      } catch (err) {
+        console.error(`❌ Error processing new transfer ${event.transfer_id}:`, err);
+      }
+    }
+
+    // Log final statistics
+    console.log('\n📊 Summary:');
+    console.log(`Total events processed: ${allEvents.length}`);
+    console.log(`New transfers created: ${newOriginationEvents.length}`);
+    console.log('\nContributions by recurring schedule:');
+    for (const [recurringId, count] of recurringStats.entries()) {
+      console.log(`  ${recurringId} → ${count} contribution(s)`);
     }
 
   } catch (error) {
@@ -181,17 +371,25 @@ async function processTransferEvent(supabase: any, event: any) {
     console.log(`Processing transfer event: ${transfer_id}, type: ${event_type}, event_id: ${event_id}`)
     console.log('Full event object:', JSON.stringify(event, null, 2))
 
-    // Find the transaction record that matches this transfer
-    const { data: transaction, error: transactionError } = await supabase
-      .from('circle_transactions')
-      .select('*')
-      .eq('plaid_transfer_id', transfer_id)
-      .single()
+    // Find the transaction record that matches this transfer (check both tables)
+    const [circleResult, soloResult] = await Promise.all([
+      supabase
+        .from('circle_transactions')
+        .select('*')
+        .eq('plaid_transfer_id', transfer_id)
+        .maybeSingle(),
+      supabase
+        .from('solo_savings_transactions')
+        .select('*')
+        .eq('plaid_transfer_id', transfer_id)
+        .maybeSingle()
+    ]);
 
-    let transactionToUpdate = transaction
+    let transactionToUpdate = circleResult.data || soloResult.data;
+    const isCircle = !!circleResult.data;
 
     // If no existing transaction found, this might be from a recurring transfer
-    if (transactionError || !transaction) {
+    if (!transactionToUpdate) {
       console.log(`No existing transaction found for transfer ${transfer_id}, checking if it's from a recurring transfer`)
       
       // Get transfer details from Plaid to find recurring_transfer_id
@@ -326,9 +524,10 @@ async function processTransferEvent(supabase: any, event: any) {
         return
     }
 
-    // Update the transaction
+    // Update the transaction in the appropriate table
+    const tableName = isCircle ? 'circle_transactions' : 'solo_savings_transactions';
     const { error: updateError } = await supabase
-      .from('circle_transactions')
+      .from(tableName)
       .update({
         status: newStatus,
         processed_at: new Date().toISOString(),
@@ -337,11 +536,36 @@ async function processTransferEvent(supabase: any, event: any) {
       .eq('id', transactionToUpdate.id)
 
     if (updateError) {
-      console.error('Error updating transaction:', updateError)
+      console.error(`Error updating ${tableName}:`, updateError)
       return
     }
 
     console.log(`Transaction ${transactionToUpdate.id} updated to status: ${newStatus}`)
+
+    // If solo savings transaction completed, update goal's current_amount
+    if (!isCircle && newStatus === 'completed') {
+      const { data: goal, error: goalError } = await supabase
+        .from('solo_savings_goals')
+        .select('current_amount')
+        .eq('id', transactionToUpdate.goal_id)
+        .single();
+
+      if (!goalError && goal) {
+        const { error: updateGoalError } = await supabase
+          .from('solo_savings_goals')
+          .update({
+            current_amount: goal.current_amount + transactionToUpdate.amount,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', transactionToUpdate.goal_id);
+
+        if (updateGoalError) {
+          console.error('Error updating goal current_amount:', updateGoalError);
+        } else {
+          console.log(`✅ Updated goal ${transactionToUpdate.goal_id} current_amount by +$${transactionToUpdate.amount}`);
+        }
+      }
+    }
 
     // Handle special cases
     if (transactionToUpdate.type === 'payout' && normalizedEventType === 'failed') {

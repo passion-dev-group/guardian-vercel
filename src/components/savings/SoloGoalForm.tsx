@@ -1,18 +1,21 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { format, addMonths } from 'date-fns';
-import { Calendar as CalendarIcon } from 'lucide-react';
+import { Calendar as CalendarIcon, Check } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Calendar } from '@/components/ui/calendar';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useSoloSavingsGoals } from '@/hooks/useSoloSavingsGoals';
+import { useLinkedBankAccounts } from '@/hooks/useLinkedBankAccounts';
+import PlaidLinkButton from '@/components/bank-linking/PlaidLinkButton';
 import { trackEvent } from '@/lib/analytics';
 
 // Define the form schema
@@ -21,6 +24,16 @@ const formSchema = z.object({
   target_amount: z.coerce.number().positive('Amount must be positive'),
   target_date: z.date().optional(),
   daily_transfer_enabled: z.boolean().default(true),
+  account_id: z.string().optional(),
+}).refine((data) => {
+  // If daily transfers are enabled, account_id is required
+  if (data.daily_transfer_enabled) {
+    return !!data.account_id;
+  }
+  return true;
+}, {
+  message: "Bank account is required when daily transfers are enabled",
+  path: ["account_id"],
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -32,7 +45,8 @@ interface SoloGoalFormProps {
 
 export default function SoloGoalForm({ goalId, onComplete }: SoloGoalFormProps) {
   const [isLoading, setIsLoading] = useState(false);
-  const { createGoal, updateGoal, fetchGoalById, goals } = useSoloSavingsGoals();
+  const { createGoal, updateGoal, fetchGoalById, goals, createGoalWithRecurring } = useSoloSavingsGoals();
+  const { accounts, loading: accountsLoading, refreshAccounts } = useLinkedBankAccounts();
 
   // Find the goal if it exists
   const existingGoal = goalId ? goals?.find(g => g.id === goalId) : undefined;
@@ -67,28 +81,49 @@ export default function SoloGoalForm({ goalId, onComplete }: SoloGoalFormProps) 
           goal_id: goalId,
           ...data,
         });
+        onComplete?.();
       } else {
         // Create new goal
-        // Fix: Ensure all required properties are explicitly provided
-        await createGoal({
-          name: data.name, // Explicitly providing the required name property
-          target_amount: data.target_amount, // Explicitly providing the required target_amount property
-          target_date: data.target_date ? format(data.target_date, 'yyyy-MM-dd') : undefined,
-          daily_transfer_enabled: data.daily_transfer_enabled
-        });
+        if (data.daily_transfer_enabled && data.account_id) {
+          // If daily transfers enabled, use the integrated endpoint that creates transfer FIRST
+          await createGoalWithRecurring({
+            name: data.name,
+            target_amount: data.target_amount,
+            target_date: data.target_date ? format(data.target_date, 'yyyy-MM-dd') : undefined,
+            daily_transfer_enabled: true,
+            account_id: data.account_id
+          });
+        } else {
+          // If daily transfers disabled, just create the goal
+          await createGoal({
+            name: data.name,
+            target_amount: data.target_amount,
+            target_date: data.target_date ? format(data.target_date, 'yyyy-MM-dd') : undefined,
+            daily_transfer_enabled: false
+          });
+        }
         
         trackEvent('solo_goal_created', {
           ...data,
         });
+        
+        onComplete?.();
       }
-      
-      onComplete?.();
     } catch (error) {
       console.error('Error saving goal:', error);
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Handle successful bank linking
+  const handleBankLinked = async () => {
+    await refreshAccounts();
+    trackEvent('bank_linked_from_goal_form');
+  };
+
+  // Watch daily_transfer_enabled to show/hide bank selection
+  const dailyTransferEnabled = form.watch('daily_transfer_enabled');
 
   return (
     <Form {...form}>
@@ -187,9 +222,68 @@ export default function SoloGoalForm({ goalId, onComplete }: SoloGoalFormProps) 
               </FormItem>
             )}
           />
+
+          {dailyTransferEnabled && (
+            <div className="space-y-4 pt-2">
+              <div className="space-y-2">
+                <div className="text-sm font-medium">
+                  Bank Authorization Required
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  Select which bank account will be used for automatic daily transfers.
+                </div>
+              </div>
+
+              <FormField
+                control={form.control}
+                name="account_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Bank Account <span className="text-destructive">*</span></FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder={accountsLoading ? "Loading accounts..." : "Select a bank account"} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {accountsLoading ? (
+                          <SelectItem value="loading" disabled>Loading accounts...</SelectItem>
+                        ) : accounts && accounts.length > 0 ? (
+                          accounts.map((account) => (
+                            <SelectItem key={account.id} value={account.account_id}>
+                              {account.institution_name} - {account.account_name} (****{account.mask})
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="none" disabled>No bank accounts linked</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      Daily transfers will be automatically deducted from this account
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <PlaidLinkButton 
+                onSuccess={handleBankLinked}
+                variant="outline"
+                className="w-full"
+              >
+                {accounts && accounts.length > 0 ? "Link Another Bank Account" : "Link Bank Account"}
+              </PlaidLinkButton>
+            </div>
+          )}
         </div>
 
-        <Button type="submit" className="w-full" disabled={isLoading}>
+        <Button 
+          type="submit" 
+          className="w-full" 
+          disabled={isLoading || (dailyTransferEnabled && !form.watch('account_id'))}
+        >
           {isLoading ? "Saving..." : goalId ? "Update Goal" : "Create Goal"}
         </Button>
       </form>

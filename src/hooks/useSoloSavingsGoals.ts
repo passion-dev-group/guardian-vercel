@@ -25,6 +25,14 @@ interface CreateSoloGoalParams {
   daily_transfer_enabled?: boolean;
 }
 
+interface CreateSoloGoalWithRecurringParams {
+  name: string;
+  target_amount: number;
+  target_date?: string;
+  daily_transfer_enabled: boolean;
+  account_id: string;
+}
+
 interface UpdateSoloGoalParams {
   id: string;
   name?: string;
@@ -305,6 +313,87 @@ export const useSoloSavingsGoals = () => {
       return false;
     }
   };
+
+  // Create a goal with recurring transfers (transfer created FIRST)
+  const createGoalWithRecurring = async (params: CreateSoloGoalWithRecurringParams) => {
+    if (!user) {
+      toast.error('You must be logged in to create a goal');
+      return null;
+    }
+    
+    setIsCreating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('start-solo-goal', {
+        body: {
+          name: params.name,
+          target_amount: params.target_amount,
+          target_date: params.target_date,
+          daily_transfer_enabled: params.daily_transfer_enabled,
+          account_id: params.account_id
+        }
+      });
+      
+      if (error) throw error;
+      if (!data?.success) {
+        throw new Error(data?.error || 'Failed to create goal with recurring transfers');
+      }
+      
+      // Track event
+      trackEvent('solo_goal_created_with_recurring', { 
+        goal_id: data.goal_id,
+        recurring_transfer_id: data.recurring_transfer_id,
+        daily_amount: data.daily_amount
+      });
+      
+      toast.success(`Goal "${params.name}" created with daily transfers`);
+      queryClient.invalidateQueries({ queryKey: ['soloSavingsGoals'] });
+      return data;
+    } catch (error: any) {
+      console.error('Error creating goal with recurring transfers:', error);
+      const errorMessage = error?.message || 'Failed to create goal with recurring transfers';
+      toast.error(errorMessage);
+      throw error;
+    } finally {
+      setIsCreating(false);
+    }
+  };
+  
+  // Start a goal with recurring transfers (DEPRECATED - use createGoalWithRecurring for new goals)
+  const startGoal = async (goalId: string, accountId: string) => {
+    if (!user) {
+      toast.error('You must be logged in to start a goal');
+      return null;
+    }
+    
+    setIsProcessing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('start-solo-goal', {
+        body: { goal_id: goalId, account_id: accountId }
+      });
+      
+      if (error) throw error;
+      if (!data?.success) {
+        throw new Error(data?.error || 'Failed to start goal');
+      }
+      
+      // Track event
+      trackEvent('solo_goal_started', { 
+        goal_id: goalId,
+        recurring_transfer_id: data.recurring_transfer_id,
+        daily_amount: data.daily_amount
+      });
+      
+      toast.success('Recurring transfers set up successfully');
+      queryClient.invalidateQueries({ queryKey: ['soloSavingsGoals'] });
+      return data;
+    } catch (error: any) {
+      console.error('Error starting goal:', error);
+      toast.error(error.message || 'Failed to set up recurring transfers');
+      throw error;
+    } finally {
+      setIsProcessing(false);
+    }
+  };
   
   return {
     goals,
@@ -315,10 +404,12 @@ export const useSoloSavingsGoals = () => {
     isProcessing,
     fetchGoalById,
     createGoal,
+    createGoalWithRecurring,
     updateGoal,
     fetchTodayAllocation,
     processGoalManually,
     addManualDeposit,
-    deleteGoal
+    deleteGoal,
+    startGoal
   };
 };

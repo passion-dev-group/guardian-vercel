@@ -74,17 +74,14 @@ serve(async (req) => {
     const plaidClient = new PlaidApi(configuration)
 
     // Create transfer request
+    // When using authorization_id, we don't include type, ach_class, user, or device
+    // Those were already specified during authorization
     const request: TransferCreateRequest = {
       access_token: transferRequest.access_token,
       account_id: transferRequest.account_id,
       authorization_id: transferRequest.authorization_id,
-      type: transferRequest.type,
-      network: transferRequest.network,
       amount: transferRequest.amount,
       description: transferRequest.description,
-      ach_class: transferRequest.ach_class,
-      user: transferRequest.user,
-      device: transferRequest.device,
     }
 
     console.log('Creating Plaid transfer with request:', JSON.stringify(request, null, 2))

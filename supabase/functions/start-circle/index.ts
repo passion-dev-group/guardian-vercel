@@ -178,6 +178,18 @@ serve(async (req) => {
         const testClockResponse = await plaidClient.sandboxTransferTestClockCreate({ virtual_time: virtualTime });
         testClockId = testClockResponse.data.test_clock.test_clock_id;
         console.log(`Test clock created: ${testClockId} with virtual time: ${virtualTime}`);
+        
+        // Save test clock ID to circles table
+        const { error: testClockUpdateError } = await svc
+          .from('circles')
+          .update({ test_clock_id: testClockId })
+          .eq('id', circle.id);
+        
+        if (testClockUpdateError) {
+          console.warn('Failed to save test clock ID to circle:', testClockUpdateError);
+        } else {
+          console.log(`Test clock ID saved to circle: ${testClockId}`);
+        }
       } catch (e) {
         console.warn('Failed to create test clock:', e);
         // ignore; proceed without clock
